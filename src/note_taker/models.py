@@ -1,0 +1,1 @@
+# src/note_taker/models.py

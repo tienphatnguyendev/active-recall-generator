@@ -1,0 +1,1 @@
+# src/note_taker/__init__.py
