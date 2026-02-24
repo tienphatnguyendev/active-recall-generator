@@ -14,4 +14,5 @@ dependencies = [
     "python-dotenv>=1.2.1",
     "sqlite-utils>=3.38",
     "typer>=0.23.2",
+    "pytest>=8.0.0",
 ]

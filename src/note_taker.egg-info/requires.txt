@@ -1,0 +1,10 @@
+groq>=1.0.0
+langfuse>=3.7.0
+langgraph>=0.6.11
+langgraph-checkpoint-sqlite>=2.0.11
+markdown>=3.9
+pydantic>=2.12.5
+python-dotenv>=1.2.1
+sqlite-utils>=3.38
+typer>=0.23.2
+pytest>=8.0.0
