@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+*.egg-info/
+dist/
+build/
+.DS_Store
+
+# Environments
+.env
+.env.*
+
+# Testing
+.pytest_cache/
+
+# Database (local, not committed)
+.note-taker.db
+
+# Git worktrees
+.worktrees/
