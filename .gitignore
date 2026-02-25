@@ -21,3 +21,12 @@ build/
 # Git worktrees
 .worktrees/
 *.dev.db
+
+# Dev databases
+dev_*.db
+
+# Temp test scripts
+test_real_pipeline.py
+test_graph_integration.py
+update_nb*.py
+
