@@ -92,5 +92,8 @@ The AI agent **MUST** follow this strict sequence of skills for all coding tasks
 -   **Debugging**: Follow `systematic-debugging` (Investigate -> Analyze -> Hypothesize -> Fix).
 -   **Verification Gate**: No claim of "fixed" without terminal evidence.
 -   **Linear Status Rule**: Only set a Linear issue to **In Progress**. **NEVER manually set it to Done.** The GitHub ↔ Linear integration handles that automatically when a PR referencing the issue is merged.
+-   **Branching Strategy for Sub-issues/Bugs**:
+    -   If the sub-issue/bug **depends on unmerged changes** from a parent issue, branch from the **parent branch** (creates a Stacked PR).
+    -   If the sub-issue/bug is **unrelated** to the parent issue's changes, or the parent is already merged, branch from **main**.
 
 ---
