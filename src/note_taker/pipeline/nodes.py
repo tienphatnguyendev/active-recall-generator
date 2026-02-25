@@ -70,3 +70,40 @@ def draft_node(state: GraphState) -> dict:
         qa_pairs=response.qa_pairs,
     )
     return {"artifact": artifact}
+
+JUDGE_SYSTEM_PROMPT = """You are a strict educational content reviewer.
+Evaluate each question-answer pair on three criteria (score 0.0 to 1.0):
+- accuracy_score: Is the answer factually correct based on the source?
+- clarity_score: Is the question clear and unambiguous?
+- recall_worthiness_score: Does this question test genuine understanding?
+- overall_score: Weighted average of the three scores.
+
+Provide specific feedback for questions scoring below 0.7 on any criterion.
+Reference questions by their index (0-based)."""
+
+def judge_node(state: GraphState) -> dict:
+    """Score each Q&A pair on accuracy, clarity, and recall-worthiness."""
+    from note_taker.models import JudgeVerdict
+    
+    llm = get_llm()
+    structured_llm = llm.with_structured_output(JudgeVerdict)
+
+    qa_text = "\n".join(
+        f"[{i}] Q: {qa.question}\n    A: {qa.answer}\n    Context: {qa.source_context}"
+        for i, qa in enumerate(state["artifact"].qa_pairs)
+    )
+
+    response = structured_llm.invoke([
+        {"role": "system", "content": JUDGE_SYSTEM_PROMPT},
+        {"role": "user", "content": f"Source:\n{state['source_content']}\n\nQ&A Pairs:\n{qa_text}"},
+    ])
+
+    artifact = state["artifact"]
+    for judgement in response.judgements:
+        idx = judgement.question_index
+        # Verify the index is within bounds before applying the score
+        if 0 <= idx < len(artifact.qa_pairs):
+            artifact.qa_pairs[idx].judge_score = judgement.overall_score
+            artifact.qa_pairs[idx].judge_feedback = judgement.feedback
+
+    return {"artifact": artifact}
