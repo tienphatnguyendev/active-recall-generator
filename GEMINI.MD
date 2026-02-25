@@ -37,6 +37,13 @@ The project is a CLI tool named "note-taker" that processes Markdown files and g
     *   **Database:** SQLite with `sqlite-utils`
     *   **Data Validation:** Pydantic
 
+## Development Sandbox (Notebooks)
+
+We use the `%load` bridge pattern for iterating on the LangGraph pipeline:
+*   The `.py` files in `src/` are the **single source of truth**.
+*   The `.ipynb` templates in `notebooks/` are used as a **scratchpad/debugger**.
+*   **Do not** write implementation code directly into the notebooks. Use them to `%load` the core logic, run it step-by-step, and inspect the `GraphState`.
+
 ## Superpowers Workflow (Agentic Protocol)
 
 The AI agent **MUST** follow this strict sequence of skills for all coding tasks. Deviations are forbidden.
