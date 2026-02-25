@@ -1,7 +1,7 @@
 import hashlib
 from note_taker.database import DatabaseManager
 from note_taker.pipeline.state import GraphState
-from note_taker.llm import get_llm
+from note_taker.llm import get_llm, invoke_with_backoff
 
 def calculate_hash(content: str) -> str:
     """Calculate SHA-256 hash of the source content."""
@@ -59,7 +59,7 @@ def draft_node(state: GraphState) -> dict:
     llm = get_llm()
     structured_llm = llm.with_structured_output(DraftResponse)
 
-    response = structured_llm.invoke([
+    response = invoke_with_backoff(structured_llm, [
         {"role": "system", "content": DRAFT_SYSTEM_PROMPT},
         {"role": "user", "content": state["source_content"]},
     ])
@@ -93,7 +93,7 @@ def judge_node(state: GraphState) -> dict:
         for i, qa in enumerate(state["artifact"].qa_pairs)
     )
 
-    response = structured_llm.invoke([
+    response = invoke_with_backoff(structured_llm, [
         {"role": "system", "content": JUDGE_SYSTEM_PROMPT},
         {"role": "user", "content": f"Source:\n{state['source_content']}\n\nQ&A Pairs:\n{qa_text}"},
     ])
@@ -137,7 +137,7 @@ def revise_node(state: GraphState) -> dict:
         for i in failing_indices
     )
 
-    response = structured_llm.invoke([
+    response = invoke_with_backoff(structured_llm, [
         {"role": "system", "content": REVISE_SYSTEM_PROMPT},
         {"role": "user", "content": f"Source:\n{state['source_content']}\n\nPairs to Revise:\n{failing_text}"},
     ])
