@@ -53,8 +53,11 @@ def process(
         raise typer.Exit(code=0)
 
     # --- Process each chunk ---
+    from note_taker.pipeline.graph import build_graph
+    
     db = DatabaseManager()
     db.ensure_database()
+    graph = build_graph()
 
     skipped = 0
     processed = 0
@@ -68,10 +71,23 @@ def process(
             rprint(f"  [dim]⏭  {chunk_id} — unchanged, skipping[/dim]")
             continue
 
-        # TODO(SOLO-40): pass to LangGraph pipeline here.
-        # For now, just log that this chunk needs processing.
         processed += 1
         rprint(f"  [blue]🔄 {chunk_id}[/blue] — [bold]{chunk['title']}[/bold]")
+        
+        initial_state = {
+            "chunk_id": chunk_id,
+            "source_content": chunk["content"],
+            "source_hash": source_hash,
+            "force_refresh": bool(force_refresh),
+            "revision_count": 0,
+            "artifact": None,
+            "skip_processing": False,
+        }
+        
+        try:
+            graph.invoke(initial_state)
+        except Exception as e:
+            rprint(f"  [red]❌ {chunk_id} failed: {e}[/red]")
 
     # --- Summary ---
     rprint()
