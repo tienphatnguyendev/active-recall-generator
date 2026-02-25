@@ -1,7 +1,7 @@
 """Tests for the Markdown chunking logic (SOLO-39)."""
 import os
 import pytest
-from note_taker.processing import strip_boilerplate, parse_markdown_chunks
+from note_taker.processing import strip_boilerplate, parse_markdown_chunks, subdivide_large_chunk
 
 # --- Fixtures ---
 
@@ -169,6 +169,37 @@ class TestParseMarkdownChunks:
         chunks = parse_markdown_chunks(str(f))
         assert len(chunks) == 1
         assert chunks[0]["title"] == "Glossary"
+
+
+class TestSubdivideLargeChunk:
+
+    def test_no_split_if_under_max_chars(self):
+        chunk = {"title": "Short", "content": "This is short."}
+        res = subdivide_large_chunk(chunk, max_chars=100)
+        assert len(res) == 1
+        assert res[0] == chunk
+
+    def test_splits_by_h3(self):
+        content = "Intro\n### Section 1\nbody 1\n### Section 2\nbody 2"
+        chunk = {"title": "Main", "content": content}
+        res = subdivide_large_chunk(chunk, max_chars=25)
+        assert len(res) == 3
+        assert res[0]["title"] == "Main"
+        assert res[0]["content"] == "Intro"
+        assert res[1]["title"] == "Main - Section 1"
+        assert "body 1" in res[1]["content"]
+        assert res[2]["title"] == "Main - Section 2"
+        assert "body 2" in res[2]["content"]
+
+    def test_splits_by_paragraphs_fallback(self):
+        content = "Para 1 is long enough to trigger\n\nPara 2 is also long\n\nPara 3"
+        chunk = {"title": "Main", "content": content}
+        res = subdivide_large_chunk(chunk, max_chars=35)
+        assert len(res) == 2
+        assert res[0]["title"] == "Main - Part 1"
+        assert res[0]["content"] == "Para 1 is long enough to trigger"
+        assert res[1]["title"] == "Main - Part 2"
+        assert res[1]["content"] == "Para 2 is also long\n\nPara 3"
 
 
 class TestParseRealChapters:
