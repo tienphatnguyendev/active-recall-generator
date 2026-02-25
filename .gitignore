@@ -20,3 +20,4 @@ build/
 
 # Git worktrees
 .worktrees/
+*.dev.db
