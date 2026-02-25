@@ -21,3 +21,28 @@ class FinalArtifactV1(BaseModel):
     source_hash: str
     outline: List[OutlineItem]
     qa_pairs: List[QuestionAnswerPair]
+
+
+# --- LLM Response Models (structured output from Groq) ---
+
+class QAJudgement(BaseModel):
+    """Judge's evaluation of a single Q&A pair."""
+    question_index: int
+    accuracy_score: float = Field(ge=0.0, le=1.0)
+    clarity_score: float = Field(ge=0.0, le=1.0)
+    recall_worthiness_score: float = Field(ge=0.0, le=1.0)
+    overall_score: float = Field(ge=0.0, le=1.0)
+    feedback: str
+
+class DraftResponse(BaseModel):
+    """LLM response from the draft node."""
+    outline: List[OutlineItem]
+    qa_pairs: List[QuestionAnswerPair]
+
+class JudgeVerdict(BaseModel):
+    """LLM response from the judge node."""
+    judgements: List[QAJudgement]
+
+class RevisionResponse(BaseModel):
+    """LLM response from the revise node."""
+    revised_pairs: List[QuestionAnswerPair]

@@ -11,3 +11,6 @@ class GraphState(TypedDict):
     # Set by check_database_node
     artifact: Optional[FinalArtifactV1]
     skip_processing: bool
+
+    # Set by judge/revise loop
+    revision_count: int
