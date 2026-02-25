@@ -1,6 +1,7 @@
 import hashlib
 from note_taker.database import DatabaseManager
 from note_taker.pipeline.state import GraphState
+from note_taker.llm import get_llm
 
 def calculate_hash(content: str) -> str:
     """Calculate SHA-256 hash of the source content."""
@@ -39,3 +40,33 @@ def check_database_node(state: GraphState, db_manager: DatabaseManager = None) -
     state["skip_processing"] = False
     state["artifact"] = None
     return state
+
+DRAFT_SYSTEM_PROMPT = """You are an expert educator creating active recall study materials.
+Given a section of a textbook, generate:
+1. A 2-level hierarchical outline of the key concepts.
+2. One question-and-answer pair per subpoint in the outline.
+
+Rules:
+- Questions should test understanding, not just recall of facts.
+- Answers should be concise but complete.
+- source_context should be the relevant sentence(s) from the source text.
+- The outline should have level 1 for main topics and level 2 for subtopics."""
+
+def draft_node(state: GraphState) -> dict:
+    """Generate outline and Q&A pairs from source content."""
+    from note_taker.models import FinalArtifactV1, DraftResponse
+    
+    llm = get_llm()
+    structured_llm = llm.with_structured_output(DraftResponse)
+
+    response = structured_llm.invoke([
+        {"role": "system", "content": DRAFT_SYSTEM_PROMPT},
+        {"role": "user", "content": state["source_content"]},
+    ])
+
+    artifact = FinalArtifactV1(
+        source_hash=state["source_hash"],
+        outline=response.outline,
+        qa_pairs=response.qa_pairs,
+    )
+    return {"artifact": artifact}
