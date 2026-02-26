@@ -58,11 +58,15 @@ def draft_node(state: GraphState) -> dict:
     
     llm = get_llm(model_name="llama-3.3-70b-versatile")
     structured_llm = llm.with_structured_output(DraftResponse)
-
-    response = invoke_with_backoff(structured_llm, [
-        {"role": "system", "content": DRAFT_SYSTEM_PROMPT},
-        {"role": "user", "content": state["source_content"]},
-    ])
+    
+    response = invoke_with_backoff(
+        structured_llm,
+        [
+            {"role": "system", "content": DRAFT_SYSTEM_PROMPT},
+            {"role": "user", "content": state["source_content"]},
+        ],
+        token_estimate=2000
+    )
 
     artifact = FinalArtifactV1(
         source_hash=state["source_hash"],
@@ -93,10 +97,14 @@ def judge_node(state: GraphState) -> dict:
         for i, qa in enumerate(state["artifact"].qa_pairs)
     )
 
-    response = invoke_with_backoff(structured_llm, [
-        {"role": "system", "content": JUDGE_SYSTEM_PROMPT},
-        {"role": "user", "content": f"Source:\n{state['source_content']}\n\nQ&A Pairs:\n{qa_text}"},
-    ])
+    response = invoke_with_backoff(
+        structured_llm,
+        [
+            {"role": "system", "content": JUDGE_SYSTEM_PROMPT},
+            {"role": "user", "content": f"Source:\n{state['source_content']}\n\nQ&A Pairs:\n{qa_text}"},
+        ],
+        token_estimate=1500
+    )
 
     artifact = state["artifact"]
     for judgement in response.judgements:
@@ -137,10 +145,14 @@ def revise_node(state: GraphState) -> dict:
         for i in failing_indices
     )
 
-    response = invoke_with_backoff(structured_llm, [
-        {"role": "system", "content": REVISE_SYSTEM_PROMPT},
-        {"role": "user", "content": f"Source:\n{state['source_content']}\n\nPairs to Revise:\n{failing_text}"},
-    ])
+    response = invoke_with_backoff(
+        structured_llm,
+        [
+            {"role": "system", "content": REVISE_SYSTEM_PROMPT},
+            {"role": "user", "content": f"Source:\n{state['source_content']}\n\nPairs to Revise:\n{failing_text}"},
+        ],
+        token_estimate=1500
+    )
 
     # Replace the failing pairs with the revised ones (mapping sequentially for now)
     # The LLM returns a list of N revised pairs for the N failing ones.
