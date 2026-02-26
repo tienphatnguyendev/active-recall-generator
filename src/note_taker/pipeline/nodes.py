@@ -56,7 +56,7 @@ def draft_node(state: GraphState) -> dict:
     """Generate outline and Q&A pairs from source content."""
     from note_taker.models import FinalArtifactV1, DraftResponse
     
-    llm = get_llm()
+    llm = get_llm(model_name="llama-3.3-70b-versatile")
     structured_llm = llm.with_structured_output(DraftResponse)
 
     response = invoke_with_backoff(structured_llm, [
@@ -85,7 +85,7 @@ def judge_node(state: GraphState) -> dict:
     """Score each Q&A pair on accuracy, clarity, and recall-worthiness."""
     from note_taker.models import JudgeVerdict
     
-    llm = get_llm()
+    llm = get_llm(model_name="llama-3.1-8b-instant")
     structured_llm = llm.with_structured_output(JudgeVerdict)
 
     qa_text = "\n".join(
@@ -127,7 +127,7 @@ def revise_node(state: GraphState) -> dict:
     if not failing_indices:
         return {"revision_count": state.get("revision_count", 0) + 1}
 
-    llm = get_llm()
+    llm = get_llm(model_name="llama-3.3-70b-versatile")
     structured_llm = llm.with_structured_output(RevisionResponse)
 
     failing_text = "\n".join(
