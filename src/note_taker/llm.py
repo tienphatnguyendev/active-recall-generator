@@ -71,15 +71,39 @@ class TokenTracker:
 # Global tracker instance
 tracker = TokenTracker()
 
-def get_llm() -> ChatGroq:
+_current_key_index = 0
+
+def get_llm(model_name: str = "llama-3.3-70b-versatile") -> ChatGroq:
     """Return a configured ChatGroq instance.
     
-    Uses the GROQ_API_KEY environment variable for authentication.
+    Uses the GROQ_API_KEYS or GROQ_API_KEY environment variable for authentication,
+    rotating keys if multiple are provided.
     """
-    return ChatGroq(
-        model="llama-3.3-70b-versatile",
-        temperature=0,
-    )
+    global _current_key_index
+    keys_str = os.environ.get("GROQ_API_KEYS", "")
+    if keys_str:
+        keys = [k.strip() for k in keys_str.split(",") if k.strip()]
+    else:
+        # Fallback to single key
+        single_key = os.environ.get("GROQ_API_KEY")
+        keys = [single_key] if single_key else []
+        
+    if not keys:
+        logger.warning("No Groq API keys found in environment. Set GROQ_API_KEYS or GROQ_API_KEY.")
+
+    selected_key = None
+    if keys:
+        selected_key = keys[_current_key_index % len(keys)]
+        _current_key_index += 1
+
+    kwargs = {
+        "model": model_name,
+        "temperature": 0,
+    }
+    if selected_key:
+        kwargs["api_key"] = selected_key
+
+    return ChatGroq(**kwargs)
 
 
 @retry(
