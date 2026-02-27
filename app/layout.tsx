@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import { AuthProvider } from "@/components/auth/auth-context";
+import { createClient } from "@/utils/supabase/server";
 import "./globals.css";
 
 const inter = Inter({
@@ -22,22 +23,24 @@ export const metadata: Metadata = {
   keywords: ["active recall", "study", "AI", "flashcards", "Q&A", "markdown"],
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
   return (
     <html lang="en">
       <body
         className={`${inter.variable} ${jetbrainsMono.variable} font-sans min-h-screen bg-background`}
         suppressHydrationWarning
       >
-        <AuthProvider>
+        <AuthProvider user={user}>
           {children}
         </AuthProvider>
       </body>
     </html>
   );
 }
-
