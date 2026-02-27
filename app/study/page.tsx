@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Nav } from "@/components/nav";
 import { cn } from "@/lib/utils";
+import { api } from "@/lib/api-client";
 
 interface QAPair {
   question: string;
@@ -87,22 +88,22 @@ export default function StudyPage() {
     const fetchCards = async () => {
       try {
         setIsLoadingCards(true);
-        const response = await fetch('/api/artifacts');
-        if (response.ok) {
-          const artifacts = await response.json();
-          const newCards = artifacts.flatMap((artifact: any) =>
-            artifact.qaPairs.map((qa: any) => ({
-              id: qa.id || Math.random().toString(36),
-              question: qa.question,
-              answer: qa.answer,
-              source: artifact.source,
-              judgeScore: qa.judgeScore || 0.85,
-            }))
-          );
-          if (newCards.length > 0) setCards(newCards);
-        }
+        // Use the central api client so the Authorization header is auto-attached
+        const data = await api.get<{ artifacts: any[] } | any[]>('/api/artifacts');
+        // API returns { artifacts: [...] } — normalise to array
+        const artifacts: any[] = Array.isArray(data) ? data : ((data as { artifacts: any[] }).artifacts ?? []);
+        const newCards = artifacts.flatMap((artifact: any) =>
+          artifact.qaPairs?.map((qa: any) => ({
+            id: qa.id || Math.random().toString(36),
+            question: qa.question,
+            answer: qa.answer,
+            source: artifact.source,
+            judgeScore: qa.judgeScore || 0.85,
+          })) ?? []
+        );
+        if (newCards.length > 0) setCards(newCards);
       } catch (err) {
-        console.log("[v0] Failed to fetch study cards, using mock data");
+        // API unavailable or unauthenticated — fall back to static mock data
         setCards(ALL_PAIRS);
       } finally {
         setIsLoadingCards(false);
