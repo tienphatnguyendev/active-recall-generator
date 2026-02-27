@@ -65,8 +65,25 @@ CREATE POLICY "Users can view own profile"
     USING (auth.uid() = id);
 -- Note: INSERT/UPDATE/DELETE are managed via triggers, no policies needed.
 
-CREATE POLICY "Users can fully manage their own artifacts"
-    ON public.artifacts FOR ALL USING (auth.uid() = user_id);
+-- public.artifacts RLS
+DROP POLICY IF EXISTS "Users can fully manage their own artifacts" ON public.artifacts;
+
+CREATE POLICY "Users can view their own artifacts"
+    ON public.artifacts FOR SELECT
+    USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can create their own artifacts"
+    ON public.artifacts FOR INSERT
+    WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own artifacts"
+    ON public.artifacts FOR UPDATE
+    USING (auth.uid() = user_id)
+    WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete their own artifacts"
+    ON public.artifacts FOR DELETE
+    USING (auth.uid() = user_id);
 
 CREATE POLICY "Users can fully manage cards in their artifacts"
     ON public.cards FOR ALL 
