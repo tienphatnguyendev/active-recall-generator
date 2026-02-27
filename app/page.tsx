@@ -123,20 +123,22 @@ export default function GeneratePage() {
       <Nav />
 
       <main className="mx-auto max-w-7xl px-6 py-10">
-        {/* Header */}
-        <div className="mb-10">
-          <p className="mb-2 font-mono text-xs font-medium uppercase tracking-widest text-primary">
+        {/* Header — McKinsey report style: left blue rule, tight caps label */}
+        <div className="mb-10 border-l-4 border-primary pl-5">
+          <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-primary">
             Active Recall Generator
           </p>
-          <h1 className="text-balance text-3xl font-semibold tracking-tight text-foreground">
+          <h1 className="text-balance text-3xl font-bold tracking-tight text-foreground">
             Transform chapters into Q&A artifacts
           </h1>
           <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
             Paste a Markdown chapter below. The{" "}
-            <span className="text-pipeline-draft">Draft</span> →{" "}
-            <span className="text-pipeline-judge">Judge</span> →{" "}
-            <span className="text-pipeline-revise">Revise</span> pipeline
-            extracts a structured outline and high-quality Q&A pairs.
+            <span className="font-medium text-accent-foreground" style={{ color: "#f3c13a" }}>Draft</span>{" "}
+            →{" "}
+            <span className="font-medium text-primary">Judge</span>{" "}
+            →{" "}
+            <span className="font-medium text-secondary-foreground">Revise</span>{" "}
+            pipeline extracts a structured outline and high-quality Q&A pairs.
           </p>
         </div>
 
@@ -159,7 +161,7 @@ export default function GeneratePage() {
                   onChange={(e) => setBookName(e.target.value)}
                   placeholder="e.g. Biology 101"
                   disabled={isRunning}
-                  className="w-full rounded-md border border-border bg-input px-3 py-2 font-mono text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
+                  className="w-full border border-border bg-card px-3 py-2 font-mono text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
                 />
               </div>
               <div>
@@ -176,7 +178,7 @@ export default function GeneratePage() {
                   onChange={(e) => setChapterName(e.target.value)}
                   placeholder="e.g. Chapter5"
                   disabled={isRunning}
-                  className="w-full rounded-md border border-border bg-input px-3 py-2 font-mono text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
+                  className="w-full border border-border bg-card px-3 py-2 font-mono text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
                 />
               </div>
             </div>
@@ -205,7 +207,7 @@ export default function GeneratePage() {
                 disabled={isRunning}
                 placeholder={"# Chapter Title\n\n## Section 1\n\nPaste your content here..."}
                 rows={18}
-                className="w-full resize-none rounded-md border border-border bg-input px-4 py-3 font-mono text-sm leading-relaxed text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
+                className="w-full resize-none border border-border bg-card px-4 py-3 font-mono text-sm leading-relaxed text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
               />
             </div>
 
@@ -230,7 +232,7 @@ export default function GeneratePage() {
                     type="button"
                     onClick={handleReset}
                     disabled={isRunning}
-                    className="rounded-md border border-border px-4 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
+                    className="border border-border px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:border-foreground hover:text-foreground disabled:opacity-40"
                   >
                     Reset
                   </button>
@@ -244,7 +246,7 @@ export default function GeneratePage() {
                     !bookName.trim() ||
                     !chapterName.trim()
                   }
-                  className="flex items-center gap-2 rounded-md bg-primary px-5 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
+                  className="flex items-center gap-2 bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
                 >
                   {isRunning ? (
                     <>
@@ -269,8 +271,8 @@ export default function GeneratePage() {
 
             {/* Stats */}
             {(isRunning || isDone) && (
-              <div className="animate-fade-in rounded-lg border border-border bg-card p-5">
-                <p className="mb-3 text-sm font-medium text-foreground">
+              <div className="animate-fade-in border border-border bg-card p-5">
+                <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-foreground">
                   Output
                 </p>
                 <dl className="space-y-2">
@@ -293,8 +295,8 @@ export default function GeneratePage() {
                 </dl>
 
                 {isDone && (
-                  <div className="mt-4 rounded-md bg-primary/10 px-3 py-2.5">
-                    <p className="text-xs font-medium text-primary">
+                  <div className="mt-4 border-l-2 border-primary bg-primary/5 px-3 py-2.5">
+                    <p className="text-xs font-semibold text-primary">
                       Pipeline complete — {qaCount} Q&A pairs saved.
                     </p>
                     <a
@@ -325,27 +327,27 @@ export default function GeneratePage() {
 
             {/* Info card */}
             {!isRunning && !isDone && (
-              <div className="rounded-lg border border-border bg-card p-5">
-                <p className="mb-2 text-sm font-medium text-foreground">
+              <div className="border border-border bg-card p-5">
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-foreground">
                   How it works
                 </p>
-                <ol className="space-y-2.5">
+                <ol className="space-y-3">
                   {[
                     {
-                      step: "1",
+                      step: "01",
                       text: "Markdown is split into chunks by H1/H2 headers",
                     },
                     {
-                      step: "2",
+                      step: "02",
                       text: "Each chunk runs through Draft → Judge → Revise",
                     },
                     {
-                      step: "3",
+                      step: "03",
                       text: "Artifacts are stored in SQLite with deduplication",
                     },
                   ].map(({ step, text }) => (
-                    <li key={step} className="flex items-start gap-2.5">
-                      <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded bg-surface font-mono text-[10px] text-muted-foreground">
+                    <li key={step} className="flex items-start gap-3">
+                      <span className="mt-0.5 shrink-0 font-mono text-xs font-bold text-primary">
                         {step}
                       </span>
                       <span className="text-xs leading-relaxed text-muted-foreground">

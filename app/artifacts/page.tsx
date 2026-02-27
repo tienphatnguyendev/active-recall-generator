@@ -178,11 +178,11 @@ export default function ArtifactsPage() {
       <Nav />
 
       <main className="mx-auto max-w-7xl px-6 py-10">
-        <div className="mb-8">
-          <p className="mb-1 font-mono text-xs font-medium uppercase tracking-widest text-primary">
+        <div className="mb-8 border-l-4 border-primary pl-5">
+          <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-primary">
             Artifacts
           </p>
-          <h1 className="text-balance text-3xl font-semibold tracking-tight text-foreground">
+          <h1 className="text-balance text-3xl font-bold tracking-tight text-foreground">
             Processed chapters
           </h1>
           <p className="mt-2 text-sm text-muted-foreground">
@@ -205,10 +205,10 @@ export default function ArtifactsPage() {
                   setSearch("");
                 }}
                 className={cn(
-                  "w-full rounded-lg border p-3 text-left transition-colors",
+                  "w-full border p-3 text-left transition-colors",
                   selectedId === artifact.id
-                    ? "border-primary/40 bg-primary/5"
-                    : "border-border bg-card hover:border-border/80 hover:bg-surface"
+                    ? "border-l-2 border-primary bg-primary/5"
+                    : "border-border bg-card hover:bg-surface"
                 )}
               >
                 <p className="font-mono text-xs text-muted-foreground">
@@ -233,7 +233,7 @@ export default function ArtifactsPage() {
           {/* Main: artifact detail */}
           <div className="space-y-5 lg:col-span-3">
             {/* Meta */}
-            <div className="flex flex-wrap items-start justify-between gap-4 rounded-lg border border-border bg-card p-5">
+            <div className="flex flex-wrap items-start justify-between gap-4 border border-border bg-card p-5">
               <div>
                 <div className="flex items-center gap-2 mb-1">
                   <span className="font-mono text-xs text-muted-foreground">
@@ -264,15 +264,15 @@ export default function ArtifactsPage() {
             </div>
 
             {/* Outline */}
-            <div className="rounded-lg border border-border bg-card p-5">
-              <p className="mb-3 text-sm font-medium text-foreground">Outline</p>
+            <div className="border border-border bg-card p-5">
+              <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-foreground">Outline</p>
               <OutlineTree items={selected.outline} />
             </div>
 
             {/* Q&A pairs */}
             <div>
               <div className="mb-3 flex items-center justify-between">
-                <p className="text-sm font-medium text-foreground">Q&A Pairs</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-foreground">Q&A Pairs</p>
                 <div className="relative">
                   <svg
                     className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
@@ -299,7 +299,7 @@ export default function ArtifactsPage() {
                 {filteredPairs.map((pair, i) => (
                   <div
                     key={i}
-                    className="rounded-lg border border-border bg-card overflow-hidden"
+                    className="border border-border bg-card overflow-hidden"
                   >
                     <button
                       onClick={() => togglePair(i)}
@@ -342,7 +342,7 @@ export default function ArtifactsPage() {
                             {pair.answer}
                           </p>
                         </div>
-                        <div className="mb-3 rounded-md bg-surface px-3 py-2">
+                        <div className="mb-3 border-l-2 border-accent bg-surface px-3 py-2">
                           <p className="mb-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                             Source context
                           </p>

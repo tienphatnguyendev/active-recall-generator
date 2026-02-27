@@ -96,9 +96,9 @@ export function PipelineStatus({
   totalChunks,
 }: PipelineStatusProps) {
   return (
-    <div className="rounded-lg border border-border bg-card p-5">
+    <div className="border border-border bg-card p-5">
       <div className="mb-4 flex items-center justify-between">
-        <p className="text-sm font-medium text-foreground">Pipeline</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-foreground">Pipeline</p>
         {totalChunks !== undefined && currentChunk !== undefined && (
           <span className="font-mono text-xs text-muted-foreground">
             chunk {currentChunk}/{totalChunks}
@@ -143,7 +143,7 @@ export function PipelineStatus({
                     </span>
                   )}
                   {stage.status === "done" && (
-                    <span className="rounded px-1.5 py-0.5 font-mono text-xs font-medium text-primary bg-primary/10">
+                    <span className="px-1.5 py-0.5 font-mono text-xs font-medium text-primary bg-primary/10">
                       done
                     </span>
                   )}
@@ -165,35 +165,35 @@ export const DEFAULT_STAGES: PipelineStage[] = [
     id: "check",
     label: "Check Database",
     description: "Hash content and skip unchanged chunks",
-    color: "#94a3b8",
+    color: "#a2aaad",
     status: "idle",
   },
   {
     id: "draft",
     label: "Draft",
     description: "Generate outline and Q&A pairs via LLM",
-    color: "hsl(38 92% 60%)",
+    color: "#f3c13a",
     status: "idle",
   },
   {
     id: "judge",
     label: "Judge",
     description: "Score each Q&A on accuracy, clarity, recall-worthiness",
-    color: "hsl(210 100% 66%)",
+    color: "#005eb8",
     status: "idle",
   },
   {
     id: "revise",
     label: "Revise",
     description: "Re-generate failing pairs (max 3 cycles)",
-    color: "hsl(280 80% 65%)",
+    color: "#a2aaad",
     status: "idle",
   },
   {
     id: "save",
     label: "Save to DB",
     description: "Persist artifact to SQLite",
-    color: "hsl(158 64% 52%)",
+    color: "#005eb8",
     status: "idle",
   },
 ];

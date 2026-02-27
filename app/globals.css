@@ -4,45 +4,47 @@
 
 @layer base {
   :root {
-    /* Dark mode as default — developer-focused aesthetic */
-    --background: 0 0% 5%;
-    --foreground: 0 0% 93%;
+    /* McKinsey / Bain / BCG corporate palette */
+    /* Background: #f5f5f5  Foreground: #222222  Primary: #005eb8  Grey: #a2aaad  Accent: #f3c13a */
 
-    --card: 0 0% 8%;
-    --card-foreground: 0 0% 93%;
+    --background: 0 0% 96%;          /* #f5f5f5 */
+    --foreground: 0 0% 13%;          /* #222222 */
 
-    --popover: 0 0% 8%;
-    --popover-foreground: 0 0% 93%;
+    --card: 0 0% 100%;               /* white cards on light bg */
+    --card-foreground: 0 0% 13%;
 
-    --primary: 158 64% 52%;
-    --primary-foreground: 0 0% 5%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 13%;
 
-    --secondary: 0 0% 12%;
-    --secondary-foreground: 0 0% 75%;
+    --primary: 213 100% 36%;         /* #005eb8 McKinsey blue */
+    --primary-foreground: 0 0% 100%;
 
-    --muted: 0 0% 12%;
-    --muted-foreground: 0 0% 50%;
+    --secondary: 210 6% 73%;         /* #a2aaad mid-grey */
+    --secondary-foreground: 0 0% 13%;
 
-    --accent: 158 64% 52%;
-    --accent-foreground: 0 0% 5%;
+    --muted: 210 6% 93%;             /* very light grey tint */
+    --muted-foreground: 210 6% 42%;  /* medium grey text */
 
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 0 0% 98%;
+    --accent: 43 88% 59%;            /* #f3c13a McKinsey yellow */
+    --accent-foreground: 0 0% 13%;
 
-    --border: 0 0% 15%;
-    --input: 0 0% 12%;
-    --ring: 158 64% 52%;
+    --destructive: 0 72% 45%;
+    --destructive-foreground: 0 0% 100%;
 
-    --radius: 0.375rem;
+    --border: 210 6% 86%;            /* subtle grey rule */
+    --input: 210 6% 93%;
+    --ring: 213 100% 36%;
 
-    /* Custom tokens */
-    --pipeline-draft: 38 92% 60%;
-    --pipeline-judge: 210 100% 66%;
-    --pipeline-revise: 280 80% 65%;
-    --pipeline-save: 158 64% 52%;
+    --radius: 0.25rem;               /* crisp corners — McKinsey uses sharp geometry */
 
-    --surface: 0 0% 10%;
-    --surface-raised: 0 0% 13%;
+    /* Pipeline stage colors — desaturated for corporate tone */
+    --pipeline-draft: 43 88% 59%;    /* yellow — Draft */
+    --pipeline-judge: 213 100% 36%;  /* blue  — Judge */
+    --pipeline-revise: 210 6% 42%;   /* grey  — Revise */
+    --pipeline-save: 213 100% 36%;   /* blue  — Save */
+
+    --surface: 210 6% 93%;           /* #eef0f1 subtle surface */
+    --surface-raised: 0 0% 100%;
   }
 }
 

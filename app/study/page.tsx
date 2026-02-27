@@ -112,11 +112,11 @@ export default function StudyPage() {
       <div className="min-h-screen bg-background">
         <Nav />
         <main className="mx-auto max-w-7xl px-6 py-10">
-          <div className="mb-10">
-            <p className="mb-1 font-mono text-xs font-medium uppercase tracking-widest text-primary">
+          <div className="mb-10 border-l-4 border-primary pl-5">
+            <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-primary">
               Study Mode
             </p>
-            <h1 className="text-balance text-3xl font-semibold tracking-tight text-foreground">
+            <h1 className="text-balance text-3xl font-bold tracking-tight text-foreground">
               Active recall session
             </h1>
             <p className="mt-2 text-sm text-muted-foreground">
@@ -126,10 +126,10 @@ export default function StudyPage() {
 
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {/* Session card */}
-            <div className="rounded-lg border border-border bg-card p-6 lg:col-span-2">
+            <div className="border border-border bg-card p-6 lg:col-span-2">
               <div className="mb-6 flex items-start justify-between">
                 <div>
-                  <p className="text-sm font-medium text-foreground">All artifacts</p>
+                  <p className="text-sm font-semibold text-foreground">All artifacts</p>
                   <p className="mt-1 text-xs text-muted-foreground">
                     {cards.length} cards across {new Set(cards.map((c) => c.source)).size} sources
                   </p>
@@ -153,7 +153,7 @@ export default function StudyPage() {
 
               <button
                 onClick={startSession}
-                className="flex w-full items-center justify-center gap-2 rounded-md bg-primary py-2.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
+                className="flex w-full items-center justify-center gap-2 bg-primary py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
               >
                 Start session
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
@@ -163,18 +163,18 @@ export default function StudyPage() {
             </div>
 
             {/* Tips */}
-            <div className="rounded-lg border border-border bg-card p-5">
-              <p className="mb-3 text-sm font-medium text-foreground">How to study</p>
+            <div className="border border-border bg-card p-5">
+              <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-foreground">How to study</p>
               <ol className="space-y-3">
                 {[
                   { n: "1", tip: "Read the question carefully before flipping the card." },
                   { n: "2", tip: "Rate honestly: Know it, Unsure, or Didn't know." },
                   { n: "3", tip: "Unsure and unknown cards are candidates for re-study." },
                 ].map(({ n, tip }) => (
-                  <li key={n} className="flex items-start gap-2.5">
-                    <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded bg-surface font-mono text-[10px] text-muted-foreground">
-                      {n}
-                    </span>
+                    <li key={n} className="flex items-start gap-3">
+                      <span className="mt-0.5 shrink-0 font-mono text-xs font-bold text-primary">
+                        0{n}
+                      </span>
                     <span className="text-xs leading-relaxed text-muted-foreground">{tip}</span>
                   </li>
                 ))}
@@ -191,24 +191,24 @@ export default function StudyPage() {
       <div className="min-h-screen bg-background">
         <Nav />
         <main className="mx-auto max-w-2xl px-6 py-10">
-          <div className="mb-8">
-            <p className="mb-1 font-mono text-xs font-medium uppercase tracking-widest text-primary">
+          <div className="mb-8 border-l-4 border-primary pl-5">
+            <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-primary">
               Session complete
             </p>
-            <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">
               Results
             </h1>
           </div>
 
-          <div className="rounded-lg border border-border bg-card p-8">
+          <div className="border border-border bg-card p-8">
             {/* Score summary */}
             <div className="mb-8 grid grid-cols-3 gap-4">
               {[
                 { label: "Know it", count: know, color: "text-primary" },
-                { label: "Unsure", count: unsure, color: "text-pipeline-judge" },
+                { label: "Unsure", count: unsure, color: "text-accent" },
                 { label: "Unknown", count: unknown, color: "text-destructive" },
               ].map(({ label, count, color }) => (
-                <div key={label} className="rounded-md bg-surface p-4 text-center">
+                <div key={label} className="border border-border bg-surface p-4 text-center">
                   <p className={cn("font-mono text-3xl font-semibold", color)}>{count}</p>
                   <p className="mt-1 text-xs text-muted-foreground">{label}</p>
                 </div>
@@ -251,13 +251,13 @@ export default function StudyPage() {
             <div className="mt-6 flex gap-3">
               <button
                 onClick={startSession}
-                className="flex-1 rounded-md bg-primary py-2.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
+                className="flex-1 bg-primary py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
               >
                 Study again
               </button>
               <a
                 href="/artifacts"
-                className="flex-1 rounded-md border border-border py-2.5 text-center text-sm text-muted-foreground transition-colors hover:text-foreground"
+                className="flex-1 border border-border py-2.5 text-center text-sm font-medium text-muted-foreground transition-colors hover:border-foreground hover:text-foreground"
               >
                 Browse artifacts
               </a>
@@ -289,10 +289,10 @@ export default function StudyPage() {
         {/* Card */}
         <div
           className={cn(
-            "relative mb-5 min-h-56 cursor-pointer rounded-xl border transition-colors",
+            "relative mb-5 min-h-56 cursor-pointer border transition-colors",
             flipped
-              ? "border-primary/30 bg-primary/5"
-              : "border-border bg-card hover:border-border/60"
+              ? "border-primary bg-primary/5"
+              : "border-border bg-card hover:border-secondary"
           )}
           onClick={() => !flipped && setFlipped(true)}
           role="button"
@@ -349,19 +349,19 @@ export default function StudyPage() {
           <div className="animate-fade-in grid grid-cols-3 gap-3">
             <button
               onClick={() => rate("unknown")}
-              className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm font-medium text-destructive transition-colors hover:bg-destructive/10"
+              className="border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm font-semibold text-destructive transition-colors hover:bg-destructive/10"
             >
               Didn&apos;t know
             </button>
             <button
               onClick={() => rate("unsure")}
-              className="rounded-lg border border-pipeline-judge/30 bg-pipeline-judge/5 px-4 py-3 text-sm font-medium text-pipeline-judge transition-colors hover:bg-pipeline-judge/10"
+              className="border border-accent/60 bg-accent/10 px-4 py-3 text-sm font-semibold text-foreground transition-colors hover:bg-accent/20"
             >
               Unsure
             </button>
             <button
               onClick={() => rate("know")}
-              className="rounded-lg border border-primary/30 bg-primary/5 px-4 py-3 text-sm font-medium text-primary transition-colors hover:bg-primary/10"
+              className="border border-primary/40 bg-primary/5 px-4 py-3 text-sm font-semibold text-primary transition-colors hover:bg-primary/10"
             >
               Know it
             </button>
@@ -372,7 +372,7 @@ export default function StudyPage() {
           <div className="mt-3 flex justify-center">
             <button
               onClick={() => setFlipped(true)}
-              className="rounded-md bg-primary px-6 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
+              className="bg-primary px-6 py-2 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
             >
               Reveal answer
             </button>
