@@ -58,8 +58,12 @@ ALTER TABLE public.cards ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.study_sessions ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies
+-- public.users RLS
+DROP POLICY IF EXISTS "Users can view own profile" ON public.users;
 CREATE POLICY "Users can view own profile" 
-    ON public.users FOR SELECT USING (auth.uid() = id);
+    ON public.users FOR SELECT 
+    USING (auth.uid() = id);
+-- Note: INSERT/UPDATE/DELETE are managed via triggers, no policies needed.
 
 CREATE POLICY "Users can fully manage their own artifacts"
     ON public.artifacts FOR ALL USING (auth.uid() = user_id);
