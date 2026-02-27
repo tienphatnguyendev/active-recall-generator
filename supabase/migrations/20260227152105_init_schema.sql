@@ -120,8 +120,25 @@ CREATE POLICY "Users can delete cards in their artifacts"
         WHERE a.id = artifact_id AND a.user_id = auth.uid()
     ));
 
-CREATE POLICY "Users can fully manage their own study sessions"
-    ON public.study_sessions FOR ALL USING (auth.uid() = user_id);
+-- public.study_sessions RLS
+DROP POLICY IF EXISTS "Users can fully manage their own study sessions" ON public.study_sessions;
+
+CREATE POLICY "Users can view their own study sessions"
+    ON public.study_sessions FOR SELECT
+    USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can create their own study sessions"
+    ON public.study_sessions FOR INSERT
+    WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own study sessions"
+    ON public.study_sessions FOR UPDATE
+    USING (auth.uid() = user_id)
+    WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete their own study sessions"
+    ON public.study_sessions FOR DELETE
+    USING (auth.uid() = user_id);
 
 -- Trigger to create profile on signup
 CREATE OR REPLACE FUNCTION public.handle_new_user() 
