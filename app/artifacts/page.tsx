@@ -282,7 +282,8 @@ export default function ArtifactsPage() {
                     </span>
                   </div>
                 </button>
-              ))}
+              ))
+            )}
           </div>
 
           {/* Main: artifact detail */}
