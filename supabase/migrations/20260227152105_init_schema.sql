@@ -58,18 +58,87 @@ ALTER TABLE public.cards ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.study_sessions ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies
+-- public.users RLS
+DROP POLICY IF EXISTS "Users can view own profile" ON public.users;
 CREATE POLICY "Users can view own profile" 
-    ON public.users FOR SELECT USING (auth.uid() = id);
+    ON public.users FOR SELECT 
+    USING (auth.uid() = id);
+-- Note: INSERT/UPDATE/DELETE are managed via triggers, no policies needed.
 
-CREATE POLICY "Users can fully manage their own artifacts"
-    ON public.artifacts FOR ALL USING (auth.uid() = user_id);
+-- public.artifacts RLS
+DROP POLICY IF EXISTS "Users can fully manage their own artifacts" ON public.artifacts;
 
-CREATE POLICY "Users can fully manage cards in their artifacts"
-    ON public.cards FOR ALL 
-    USING (EXISTS (SELECT 1 FROM public.artifacts a WHERE a.id = artifact_id AND a.user_id = auth.uid()));
+CREATE POLICY "Users can view their own artifacts"
+    ON public.artifacts FOR SELECT
+    USING (auth.uid() = user_id);
 
-CREATE POLICY "Users can fully manage their own study sessions"
-    ON public.study_sessions FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "Users can create their own artifacts"
+    ON public.artifacts FOR INSERT
+    WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own artifacts"
+    ON public.artifacts FOR UPDATE
+    USING (auth.uid() = user_id)
+    WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete their own artifacts"
+    ON public.artifacts FOR DELETE
+    USING (auth.uid() = user_id);
+
+-- public.cards RLS
+DROP POLICY IF EXISTS "Users can fully manage cards in their artifacts" ON public.cards;
+
+CREATE POLICY "Users can view cards in their artifacts"
+    ON public.cards FOR SELECT
+    USING (EXISTS (
+        SELECT 1 FROM public.artifacts a 
+        WHERE a.id = artifact_id AND a.user_id = auth.uid()
+    ));
+
+CREATE POLICY "Users can create cards in their artifacts"
+    ON public.cards FOR INSERT
+    WITH CHECK (EXISTS (
+        SELECT 1 FROM public.artifacts a 
+        WHERE a.id = artifact_id AND a.user_id = auth.uid()
+    ));
+
+CREATE POLICY "Users can update cards in their artifacts"
+    ON public.cards FOR UPDATE
+    USING (EXISTS (
+        SELECT 1 FROM public.artifacts a 
+        WHERE a.id = artifact_id AND a.user_id = auth.uid()
+    ))
+    WITH CHECK (EXISTS (
+        SELECT 1 FROM public.artifacts a 
+        WHERE a.id = artifact_id AND a.user_id = auth.uid()
+    ));
+
+CREATE POLICY "Users can delete cards in their artifacts"
+    ON public.cards FOR DELETE
+    USING (EXISTS (
+        SELECT 1 FROM public.artifacts a 
+        WHERE a.id = artifact_id AND a.user_id = auth.uid()
+    ));
+
+-- public.study_sessions RLS
+DROP POLICY IF EXISTS "Users can fully manage their own study sessions" ON public.study_sessions;
+
+CREATE POLICY "Users can view their own study sessions"
+    ON public.study_sessions FOR SELECT
+    USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can create their own study sessions"
+    ON public.study_sessions FOR INSERT
+    WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own study sessions"
+    ON public.study_sessions FOR UPDATE
+    USING (auth.uid() = user_id)
+    WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete their own study sessions"
+    ON public.study_sessions FOR DELETE
+    USING (auth.uid() = user_id);
 
 -- Trigger to create profile on signup
 CREATE OR REPLACE FUNCTION public.handle_new_user() 
