@@ -122,7 +122,7 @@ export default function GeneratePage() {
     <div className="min-h-screen bg-background">
       <Nav />
 
-      <main className="mx-auto max-w-7xl px-6 py-10">
+      <main className="mx-auto max-w-7xl px-4 sm:px-6 py-8 sm:py-10">
         {/* Header — McKinsey report style: left blue rule, tight caps label */}
         <div className="mb-10 border-l-4 border-primary pl-5">
           <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-primary">
@@ -133,7 +133,7 @@ export default function GeneratePage() {
           </h1>
           <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
             Paste a Markdown chapter below. The{" "}
-            <span className="font-medium text-accent-foreground" style={{ color: "#f3c13a" }}>Draft</span>{" "}
+            <span className="font-medium text-accent">Draft</span>{" "}
             →{" "}
             <span className="font-medium text-primary">Judge</span>{" "}
             →{" "}

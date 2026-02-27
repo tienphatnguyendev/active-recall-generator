@@ -43,6 +43,10 @@
     --pipeline-revise: 210 6% 42%;   /* grey  — Revise */
     --pipeline-save: 213 100% 36%;   /* blue  — Save */
 
+    /* Mastery level — "mastered" green as a design token */
+    --mastered: 142 71% 38%;         /* green — Mastered */
+    --mastered-foreground: 0 0% 100%;
+
     --surface: 210 6% 93%;           /* #eef0f1 subtle surface */
     --surface-raised: 0 0% 100%;
   }

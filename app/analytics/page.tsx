@@ -70,7 +70,7 @@ export default function AnalyticsPage() {
   return (
     <div className="min-h-screen bg-background">
       <Nav />
-      <main className="mx-auto max-w-7xl px-6 py-10 overflow-auto">
+      <main className="mx-auto max-w-7xl px-4 sm:px-6 py-8 sm:py-10">
         {/* Header */}
         <div className="mb-8 border-l-4 border-primary pl-5">
           <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-primary">
@@ -89,7 +89,7 @@ export default function AnalyticsPage() {
         </div>
 
         {error && (
-          <div className="mb-6 p-4 bg-destructive/10 border border-destructive/20 rounded-lg text-sm text-destructive">
+          <div className="mb-6 border-l-2 border-destructive bg-destructive/5 px-4 py-3 text-sm text-destructive">
             {error}
           </div>
         )}
@@ -131,9 +131,11 @@ export default function AnalyticsPage() {
             </div>
 
             {/* Detailed Progress Section */}
-            <div className="bg-card border border-border rounded-lg p-6">
-              <h2 className="text-xl font-semibold text-foreground mb-4">Artifact Progress</h2>
-              <div className="space-y-4">
+            <div>
+              <p className="mb-4 text-xs font-semibold uppercase tracking-wide text-foreground">
+                Artifact progress
+              </p>
+              <div className="space-y-8">
                 {analyticsData.artifacts.map((artifact) => (
                   <ArtifactProgressDetail
                     key={artifact.artifactId}
