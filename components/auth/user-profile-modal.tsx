@@ -190,7 +190,7 @@ export function UserProfileModal({ open, onClose }: UserProfileModalProps) {
                 type="button"
                 role="switch"
                 aria-checked={notifications}
-                onClick={() => setNotifications((v) => !v)}
+                onClick={() => setNotifications((v: boolean) => !v)}
                 className={cn(
                   "relative h-5 w-9 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1",
                   notifications ? "bg-primary" : "bg-muted"
