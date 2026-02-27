@@ -421,11 +421,10 @@ export default function ArtifactsPage() {
                   <div className="rounded-lg border border-border bg-card px-4 py-10 text-center">
                     <p className="text-sm text-muted-foreground">
                       No Q&A pairs match your search.
-                </p>
-              </button>
-              ))
-            )}
-          </div>
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
