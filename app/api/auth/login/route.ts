@@ -19,13 +19,14 @@ export async function POST(request: NextRequest) {
     // 3. Create session/JWT token
     // 4. Return user data and token
 
+    // Field must be `accessToken` — AuthContext reads res.accessToken
     return NextResponse.json({
       user: {
         id: 'user123',
         email: email,
         name: 'User Name',
       },
-      token: 'jwt_token_here',
+      accessToken: 'jwt_token_here',
     });
   } catch (error) {
     console.error('Login error:', error);

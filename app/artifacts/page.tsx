@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Nav } from "@/components/nav";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeletons";
+import { api, ApiError } from "@/lib/api-client";
 
 interface QAPair {
   question: string;
@@ -161,11 +162,12 @@ export default function ArtifactsPage() {
     const fetchArtifacts = async () => {
       try {
         setIsLoading(true);
-        const response = await fetch('/api/artifacts');
-        if (!response.ok) throw new Error('Failed to fetch artifacts');
-        const data = await response.json();
-        setArtifacts(data.length ? data : MOCK_ARTIFACTS);
-        setSelectedId((data[0]?.id) || MOCK_ARTIFACTS[0].id);
+        // Use the central api client so the Authorization header is auto-attached
+        const data = await api.get<{ artifacts: Artifact[] } | Artifact[]>('/api/artifacts');
+        // API returns { artifacts: [...], total, page, limit, totalPages }
+        const list: Artifact[] = Array.isArray(data) ? data : ((data as { artifacts: Artifact[] }).artifacts ?? []);
+        setArtifacts(list.length ? list : MOCK_ARTIFACTS);
+        setSelectedId((list[0]?.id) || MOCK_ARTIFACTS[0].id);
         setError(null);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'An error occurred');
