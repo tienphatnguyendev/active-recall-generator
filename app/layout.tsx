@@ -30,6 +30,7 @@ export default function RootLayout({
     <html lang="en">
       <body
         className={`${inter.variable} ${jetbrainsMono.variable} font-sans min-h-screen bg-background`}
+        suppressHydrationWarning
       >
         {children}
       </body>
