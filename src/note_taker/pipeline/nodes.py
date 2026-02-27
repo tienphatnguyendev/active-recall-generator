@@ -134,7 +134,7 @@ def judge_node(state: GraphState) -> dict:
     """Score each Q&A pair on accuracy, clarity, and recall-worthiness."""
     from note_taker.models import JudgeVerdict
     
-    llm = get_llm(model_name="llama-3.1-8b-instant")
+    llm = get_llm(tier="fast")
     structured_llm = llm.with_structured_output(JudgeVerdict)
 
     qa_text = "\n".join(
@@ -180,7 +180,7 @@ def revise_node(state: GraphState) -> dict:
     if not failing_indices:
         return {"revision_count": state.get("revision_count", 0) + 1}
 
-    llm = get_llm(model_name="llama-3.3-70b-versatile")
+    llm = get_llm(tier="reasoning")
     structured_llm = llm.with_structured_output(RevisionResponse)
 
     failing_text = "\n".join(

@@ -81,6 +81,7 @@ def process(
             "force_refresh": bool(force_refresh),
             "revision_count": 0,
             "artifact": None,
+            "outline": None,
             "skip_processing": False,
         }
         
@@ -97,3 +98,6 @@ def process(
         f"Skipped: [bold]{skipped}[/bold]  |  "
         f"Total: [bold]{len(chunks)}[/bold]"
     )
+
+if __name__ == "__main__":
+    app()
