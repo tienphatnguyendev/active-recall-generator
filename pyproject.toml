@@ -16,4 +16,7 @@ dependencies = [
     "sqlite-utils>=3.38",
     "typer>=0.23.2",
     "pytest>=8.0.0",
+    "supabase>=2.28.0",
+    "langchain-cerebras>=0.6.0",
+    "langchain-sambanova>=0.2.0",
 ]
