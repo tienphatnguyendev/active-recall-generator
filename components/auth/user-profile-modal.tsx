@@ -10,18 +10,22 @@ interface UserProfileModalProps {
 }
 
 export function UserProfileModal({ open, onClose }: UserProfileModalProps) {
-  const { user, updateProfile } = useAuth();
+  const { user } = useAuth();
+  
+  // NOTE: In a real implementation we would fetch these preferences from user metadata
+  // or a user_profiles table. For now we use the raw Supabase user and dummy state.
+  const userMetadata = user?.user_metadata || {};
 
-  const [name, setName] = useState(user?.name ?? "");
-  const [bio, setBio] = useState(user?.bio ?? "");
+  const [name, setName] = useState(userMetadata.name ?? "");
+  const [bio, setBio] = useState(userMetadata.bio ?? "");
   const [theme, setTheme] = useState<"light" | "dark" | "system">(
-    user?.preferences?.theme ?? "system"
+    userMetadata.preferences?.theme ?? "system"
   );
   const [sessionLength, setSessionLength] = useState(
-    user?.preferences?.sessionLength ?? 20
+    userMetadata.preferences?.sessionLength ?? 20
   );
   const [notifications, setNotifications] = useState(
-    user?.preferences?.notifications ?? true
+    userMetadata.preferences?.notifications ?? true
   );
   const [isSaving, setIsSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -29,11 +33,12 @@ export function UserProfileModal({ open, onClose }: UserProfileModalProps) {
 
   useEffect(() => {
     if (user) {
-      setName(user.name);
-      setBio(user.bio ?? "");
-      setTheme(user.preferences?.theme ?? "system");
-      setSessionLength(user.preferences?.sessionLength ?? 20);
-      setNotifications(user.preferences?.notifications ?? true);
+      const meta = user.user_metadata || {};
+      setName(meta.name ?? "");
+      setBio(meta.bio ?? "");
+      setTheme(meta.preferences?.theme ?? "system");
+      setSessionLength(meta.preferences?.sessionLength ?? 20);
+      setNotifications(meta.preferences?.notifications ?? true);
     }
   }, [user]);
 
@@ -44,11 +49,12 @@ export function UserProfileModal({ open, onClose }: UserProfileModalProps) {
     setError(null);
     setIsSaving(true);
     try {
-      await updateProfile({
-        name,
-        bio,
-        preferences: { theme, sessionLength, notifications },
-      });
+      // TODO: Implement updateProfile Server Action
+      // await updateProfile({
+      //   name,
+      //   bio,
+      //   preferences: { theme, sessionLength, notifications },
+      // });
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch {

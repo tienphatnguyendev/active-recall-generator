@@ -1,38 +1,21 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useAuth } from "@/components/auth/auth-context";
-import { ApiError } from "@/lib/api-client";
+import { register } from "@/app/actions/auth";
 
 export default function RegisterPage() {
-  const { register } = useAuth();
-  const router = useRouter();
-
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isPending, startTransition] = useTransition();
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (formData: FormData) => {
     setError(null);
-    setIsLoading(true);
-
-    try {
-      await register(name, email, password);
-      router.push("/");
-    } catch (err) {
-      if (err instanceof ApiError) {
-        setError(err.message);
-      } else {
-        setError("Something went wrong. Please try again.");
+    startTransition(async () => {
+      const result = await register(formData);
+      if (result?.error) {
+        setError(result.error);
       }
-    } finally {
-      setIsLoading(false);
-    }
+    });
   };
 
   return (
@@ -62,7 +45,7 @@ export default function RegisterPage() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+          <form action={handleSubmit} className="space-y-4" noValidate>
             <div>
               <label
                 htmlFor="name"
@@ -72,13 +55,12 @@ export default function RegisterPage() {
               </label>
               <input
                 id="name"
+                name="name"
                 type="text"
                 autoComplete="name"
                 required
-                value={name}
-                onChange={(e) => setName(e.target.value)}
                 placeholder="Jane Smith"
-                disabled={isLoading}
+                disabled={isPending}
                 className="w-full border border-border bg-background px-3 py-2 font-mono text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
               />
             </div>
@@ -92,13 +74,12 @@ export default function RegisterPage() {
               </label>
               <input
                 id="email"
+                name="email"
                 type="email"
                 autoComplete="email"
                 required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
-                disabled={isLoading}
+                disabled={isPending}
                 className="w-full border border-border bg-background px-3 py-2 font-mono text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
               />
             </div>
@@ -112,14 +93,13 @@ export default function RegisterPage() {
               </label>
               <input
                 id="password"
+                name="password"
                 type="password"
                 autoComplete="new-password"
                 required
                 minLength={8}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
                 placeholder="At least 8 characters"
-                disabled={isLoading}
+                disabled={isPending}
                 suppressHydrationWarning
                 className="w-full border border-border bg-background px-3 py-2 font-mono text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
               />
@@ -127,13 +107,13 @@ export default function RegisterPage() {
 
             <button
               type="submit"
-              disabled={isLoading || !name || !email || !password}
+              disabled={isPending}
               className="flex w-full items-center justify-center gap-2 bg-primary py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
             >
-              {isLoading && (
+              {isPending && (
                 <span className="h-3.5 w-3.5 animate-spin rounded-full border border-primary-foreground/30 border-t-primary-foreground" />
               )}
-              {isLoading ? "Creating account..." : "Create account"}
+              {isPending ? "Creating account..." : "Create account"}
             </button>
           </form>
 
