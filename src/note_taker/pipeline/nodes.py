@@ -52,6 +52,30 @@ Rules:
 - source_context should be the relevant sentence(s) from the source text.
 - The outline should have level 1 for main topics and level 2 for subtopics."""
 
+OUTLINE_SYSTEM_PROMPT = """You are an expert educator planning a study session.
+Given a section of a textbook, generate a 2-level hierarchical outline of the key concepts.
+Level 1 should cover main topics. Level 2 should cover detailed subtopics.
+This outline will be used to generate active recall questions."""
+
+def outline_draft_node(state: GraphState) -> dict:
+    """Generate a hierarchical outline from source content."""
+    from note_taker.models import OutlineResponse
+    
+    # Fast tier for outline generation
+    llm = get_llm(tier="fast")
+    structured_llm = llm.with_structured_output(OutlineResponse)
+    
+    response = invoke_with_backoff(
+        structured_llm,
+        [
+            {"role": "system", "content": OUTLINE_SYSTEM_PROMPT},
+            {"role": "user", "content": state["source_content"]},
+        ],
+        token_estimate=1000
+    )
+
+    return {"outline": response}
+
 def draft_node(state: GraphState) -> dict:
     """Generate outline and Q&A pairs from source content."""
     from note_taker.models import FinalArtifactV1, DraftResponse
