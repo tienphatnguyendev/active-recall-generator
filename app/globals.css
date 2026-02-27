@@ -1,0 +1,80 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* McKinsey / Bain / BCG corporate palette */
+    /* Background: #f5f5f5  Foreground: #222222  Primary: #005eb8  Grey: #a2aaad  Accent: #f3c13a */
+
+    --background: 0 0% 96%;          /* #f5f5f5 */
+    --foreground: 0 0% 13%;          /* #222222 */
+
+    --card: 0 0% 100%;               /* white cards on light bg */
+    --card-foreground: 0 0% 13%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 13%;
+
+    --primary: 213 100% 36%;         /* #005eb8 McKinsey blue */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 210 6% 73%;         /* #a2aaad mid-grey */
+    --secondary-foreground: 0 0% 13%;
+
+    --muted: 210 6% 93%;             /* very light grey tint */
+    --muted-foreground: 210 6% 42%;  /* medium grey text */
+
+    --accent: 43 88% 59%;            /* #f3c13a McKinsey yellow */
+    --accent-foreground: 0 0% 13%;
+
+    --destructive: 0 72% 45%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 210 6% 86%;            /* subtle grey rule */
+    --input: 210 6% 93%;
+    --ring: 213 100% 36%;
+
+    --radius: 0.25rem;               /* crisp corners — McKinsey uses sharp geometry */
+
+    /* Pipeline stage colors — desaturated for corporate tone */
+    --pipeline-draft: 43 88% 59%;    /* yellow — Draft */
+    --pipeline-judge: 213 100% 36%;  /* blue  — Judge */
+    --pipeline-revise: 210 6% 42%;   /* grey  — Revise */
+    --pipeline-save: 213 100% 36%;   /* blue  — Save */
+
+    --surface: 210 6% 93%;           /* #eef0f1 subtle surface */
+    --surface-raised: 0 0% 100%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+
+  ::selection {
+    @apply bg-primary/30 text-foreground;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-background;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground/40;
+  }
+}
