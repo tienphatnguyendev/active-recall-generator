@@ -10,10 +10,37 @@ import { PerformanceByTopic } from '@/components/analytics/performance-by-topic'
 import { ArtifactProgressDetail } from '@/components/analytics/artifact-progress-detail';
 import { AnalyticsExportButton } from '@/components/analytics/analytics-export-button';
 import { Skeleton } from '@/components/ui/skeletons';
+import type { MasteryLevel } from '@/components/study/mastery-badge';
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+interface AnalyticsData {
+  stats: { label: string; value: string | number; subValue?: string; trend?: "up" | "down" | "neutral"; trendValue?: string }[];
+  streak: {
+    currentStreak: number;
+    longestStreak: number;
+    studiedToday: boolean;
+    recentDays: { date: string; studied: boolean }[];
+  };
+  weeklyActivity: { date: string; cardsStudied: number; sessionCount: number }[];
+  masteryDistribution: {
+    data: { level: MasteryLevel; count: number }[];
+    totalCards: number;
+  };
+  performanceByTopic: { topic: string; source: string; totalCards: number; knownPct: number; unsurePct: number; unknownPct: number }[];
+  artifacts: {
+    artifactId: string;
+    section: string;
+    source: string;
+    mastery: MasteryLevel;
+    studyTimeline: { date: string; rating: "know" | "unsure" | "unknown" }[];
+    weakAreas: { question: string; timesUnknown: number; lastAttempted: string }[];
+    nextSessionSuggestion: string;
+  }[];
+}
 
 export default function AnalyticsPage() {
   const { user } = useAuth();
-  const [analyticsData, setAnalyticsData] = useState(null);
+  const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -62,7 +89,7 @@ export default function AnalyticsPage() {
               Track your learning progress and performance metrics
             </p>
           </div>
-          <AnalyticsExportButton analyticsData={analyticsData} />
+          <AnalyticsExportButton />
         </div>
 
         {error && (
@@ -83,11 +110,16 @@ export default function AnalyticsPage() {
         ) : analyticsData ? (
           <div className="space-y-6">
             {/* Stats Overview Row */}
-            <StatsOverview data={analyticsData.stats} />
+            <StatsOverview stats={analyticsData.stats} />
 
             {/* Streak and Activity Row */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <StreakWidget streak={analyticsData.streak} />
+              <StreakWidget
+                currentStreak={analyticsData.streak.currentStreak}
+                longestStreak={analyticsData.streak.longestStreak}
+                studiedToday={analyticsData.streak.studiedToday}
+                recentDays={analyticsData.streak.recentDays}
+              />
               <div className="md:col-span-2">
                 <WeeklyActivityChart data={analyticsData.weeklyActivity} />
               </div>
@@ -95,14 +127,30 @@ export default function AnalyticsPage() {
 
             {/* Charts Row */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <MasteryDistributionChart data={analyticsData.masteryDistribution} />
-              <PerformanceByTopic data={analyticsData.performanceByTopic} />
+              <MasteryDistributionChart
+                data={analyticsData.masteryDistribution.data}
+                totalCards={analyticsData.masteryDistribution.totalCards}
+              />
+              <PerformanceByTopic topics={analyticsData.performanceByTopic} />
             </div>
 
             {/* Detailed Progress Section */}
             <div className="bg-card border border-border rounded-lg p-6">
               <h2 className="text-xl font-semibold text-foreground mb-4">Artifact Progress</h2>
-              <ArtifactProgressDetail artifacts={analyticsData.artifacts} />
+              <div className="space-y-4">
+                {analyticsData.artifacts.map((artifact) => (
+                  <ArtifactProgressDetail
+                    key={artifact.artifactId}
+                    artifactId={artifact.artifactId}
+                    section={artifact.section}
+                    source={artifact.source}
+                    mastery={artifact.mastery}
+                    studyTimeline={artifact.studyTimeline}
+                    weakAreas={artifact.weakAreas}
+                    nextSessionSuggestion={artifact.nextSessionSuggestion}
+                  />
+                ))}
+              </div>
             </div>
           </div>
         ) : (
