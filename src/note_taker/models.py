@@ -35,8 +35,16 @@ class QAJudgement(BaseModel):
     feedback: str
 
 class DraftResponse(BaseModel):
-    """LLM response from the draft node."""
+    """LLM response from the draft node. Keeps qa_pairs for backward compatibility."""
     outline: List[OutlineItem]
+    qa_pairs: List[QuestionAnswerPair]
+
+class OutlineResponse(BaseModel):
+    """LLM response from the outline draft node."""
+    outline: List[OutlineItem]
+
+class QADraftResponse(BaseModel):
+    """LLM response from the QA draft node."""
     qa_pairs: List[QuestionAnswerPair]
 
 class JudgeVerdict(BaseModel):

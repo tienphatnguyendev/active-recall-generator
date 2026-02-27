@@ -1,5 +1,5 @@
 from note_taker.models import QuestionAnswerPair, OutlineItem, FinalArtifactV1
-from note_taker.models import DraftResponse, JudgeVerdict, QAJudgement, RevisionResponse
+from note_taker.models import DraftResponse, JudgeVerdict, QAJudgement, RevisionResponse, OutlineResponse, QADraftResponse
 import pytest
 from pydantic import ValidationError
 
@@ -94,4 +94,15 @@ def test_revision_response_valid():
         revised_pairs=[QuestionAnswerPair(question="Q2", answer="A2", source_context="C")]
     )
     assert len(rr.revised_pairs) == 1
+
+def test_outline_response_valid():
+    r = OutlineResponse(outline=[OutlineItem(title="T", level=1)])
+    assert len(r.outline) == 1
+
+def test_qa_draft_response_valid():
+    r = QADraftResponse(qa_pairs=[
+        QuestionAnswerPair(question="Q", answer="A", source_context="C")
+    ])
+    assert len(r.qa_pairs) == 1
+
 
