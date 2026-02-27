@@ -114,11 +114,11 @@ function ScoreBadge({ score }: { score: number }) {
     score >= 0.9
       ? "text-primary bg-primary/10"
       : score >= 0.7
-      ? "text-pipeline-judge bg-pipeline-judge/10"
+      ? "text-pipeline-draft bg-pipeline-draft/10"
       : "text-destructive bg-destructive/10";
 
   return (
-    <span className={cn("rounded px-1.5 py-0.5 font-mono text-xs font-medium", color)}>
+    <span className={cn("px-1.5 py-0.5 font-mono text-xs font-medium", color)}>
       {score.toFixed(2)}
     </span>
   );
@@ -204,7 +204,7 @@ export default function ArtifactsPage() {
     return (
       <div className="min-h-screen bg-background">
         <Nav />
-        <main className="mx-auto max-w-7xl px-6 py-10">
+        <main className="mx-auto max-w-7xl px-4 sm:px-6 py-8 sm:py-10">
           <div className="mb-8 border-l-4 border-primary pl-5">
             <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-primary">
               Artifacts
@@ -213,7 +213,7 @@ export default function ArtifactsPage() {
               Processed chapters
             </h1>
           </div>
-          <div className="p-4 bg-destructive/10 border border-destructive/20 rounded text-destructive">
+          <div className="border-l-2 border-destructive bg-destructive/5 px-4 py-3 text-sm text-destructive">
             {error}
           </div>
         </main>
@@ -225,7 +225,7 @@ export default function ArtifactsPage() {
     <div className="min-h-screen bg-background">
       <Nav />
 
-      <main className="mx-auto max-w-7xl px-6 py-10">
+      <main className="mx-auto max-w-7xl px-4 sm:px-6 py-8 sm:py-10">
         <div className="mb-8 border-l-4 border-primary pl-5">
           <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-primary">
             Artifacts
@@ -238,9 +238,9 @@ export default function ArtifactsPage() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-3 lg:grid-cols-4">
           {/* Sidebar: artifact list */}
-          <div className="space-y-2 lg:col-span-1">
+          <div className="space-y-2 md:col-span-1">
             <p className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
               {isLoading ? "Loading..." : `${artifacts.length} artifacts`}
             </p>
@@ -260,10 +260,10 @@ export default function ArtifactsPage() {
                     setSearch("");
                   }}
                   className={cn(
-                    "w-full border p-3 text-left transition-colors",
+                    "w-full border border-border p-3 text-left transition-colors",
                     selectedId === artifact.id
-                      ? "border-l-2 border-primary bg-primary/5"
-                      : "border-border bg-card hover:bg-surface"
+                      ? "border-l-[3px] border-l-primary bg-primary/5"
+                      : "bg-card hover:bg-surface"
                   )}
                 >
                   <p className="font-mono text-xs text-muted-foreground">
@@ -287,7 +287,7 @@ export default function ArtifactsPage() {
           </div>
 
           {/* Main: artifact detail */}
-          <div className="space-y-5 lg:col-span-3">
+          <div className="space-y-5 md:col-span-2 lg:col-span-3">
             {/* Meta */}
             <div className="flex flex-wrap items-start justify-between gap-4 border border-border bg-card p-5">
               <div>
@@ -346,7 +346,7 @@ export default function ArtifactsPage() {
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     placeholder="Search questions..."
-                    className="rounded-md border border-border bg-input py-1.5 pl-7 pr-3 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring"
+                    className="border border-border bg-input py-1.5 pl-7 pr-3 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring"
                   />
                 </div>
               </div>

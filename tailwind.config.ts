@@ -57,6 +57,10 @@ const config: Config = {
           revise: "hsl(var(--pipeline-revise))",
           save: "hsl(var(--pipeline-save))",
         },
+        mastered: {
+          DEFAULT: "hsl(var(--mastered))",
+          foreground: "hsl(var(--mastered-foreground))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",

@@ -141,7 +141,7 @@ export default function StudyPage() {
     return (
       <div className="min-h-screen bg-background">
         <Nav />
-        <main className="mx-auto max-w-7xl px-6 py-10">
+        <main className="mx-auto max-w-7xl px-4 sm:px-6 py-8 sm:py-10">
           <div className="mb-10 border-l-4 border-primary pl-5">
             <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-primary">
               Study Mode
@@ -221,7 +221,7 @@ export default function StudyPage() {
     return (
       <div className="min-h-screen bg-background">
         <Nav />
-        <main className="mx-auto max-w-2xl px-6 py-10">
+        <main className="mx-auto max-w-2xl px-4 sm:px-6 py-8 sm:py-10">
           <div className="mb-8 border-l-4 border-primary pl-5">
             <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-primary">
               Session complete
@@ -236,7 +236,7 @@ export default function StudyPage() {
             <div className="mb-8 grid grid-cols-3 gap-4">
               {[
                 { label: "Know it", count: know, color: "text-primary" },
-                { label: "Unsure", count: unsure, color: "text-accent" },
+                { label: "Unsure", count: unsure, color: "text-pipeline-draft" },
                 { label: "Unknown", count: unknown, color: "text-destructive" },
               ].map(({ label, count, color }) => (
                 <div key={label} className="border border-border bg-surface p-4 text-center">
@@ -260,11 +260,11 @@ export default function StudyPage() {
                     </p>
                     <span
                       className={cn(
-                        "shrink-0 rounded px-2 py-0.5 font-mono text-xs font-medium",
+                        "shrink-0 px-2 py-0.5 font-mono text-xs font-medium",
                         result.rating === "know"
                           ? "bg-primary/10 text-primary"
                           : result.rating === "unsure"
-                          ? "bg-pipeline-judge/10 text-pipeline-judge"
+                          ? "bg-pipeline-draft/10 text-pipeline-draft"
                           : "bg-destructive/10 text-destructive"
                       )}
                     >
@@ -303,7 +303,7 @@ export default function StudyPage() {
     <div className="min-h-screen bg-background">
       <Nav />
 
-      <main className="mx-auto max-w-2xl px-6 py-10">
+      <main className="mx-auto max-w-2xl px-4 sm:px-6 py-8 sm:py-10">
         {/* Progress */}
         <div className="mb-6">
           <div className="mb-2 flex items-center justify-between">

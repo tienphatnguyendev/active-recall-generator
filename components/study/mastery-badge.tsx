@@ -26,8 +26,8 @@ const MASTERY_CONFIG: Record<
   },
   mastered: {
     label: "Mastered",
-    color: "text-green-600",
-    bgColor: "bg-green-50",
+    color: "text-mastered",
+    bgColor: "bg-mastered/10",
     barWidth: "w-full",
   },
 };
@@ -63,7 +63,7 @@ export function MasteryBadge({
               "bg-muted-foreground/30": level === "new",
               "bg-pipeline-draft": level === "learning",
               "bg-primary": level === "reviewing",
-              "bg-green-500": level === "mastered",
+              "bg-mastered": level === "mastered",
             })}
             style={{ width: config.barWidth }}
           />

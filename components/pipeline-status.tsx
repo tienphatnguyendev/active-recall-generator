@@ -110,7 +110,7 @@ export function PipelineStatus({
         {stages.map((stage, index) => (
           <div key={stage.id} className="relative">
             {index < stages.length - 1 && (
-              <div className="absolute left-3.5 top-7 h-2 w-px bg-border" />
+              <div className="absolute left-3.5 top-7 h-4 w-px bg-border" />
             )}
             <div
               className={cn(

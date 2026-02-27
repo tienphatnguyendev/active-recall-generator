@@ -29,8 +29,8 @@ const LEVEL_CONFIG: Record<MasteryLevel, { label: string; barClass: string; text
   },
   mastered: {
     label: "Mastered",
-    barClass: "bg-green-500",
-    textClass: "text-green-600",
+    barClass: "bg-mastered",
+    textClass: "text-mastered",
   },
 };
 
