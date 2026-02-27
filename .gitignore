@@ -1,3 +1,9 @@
+# Next.js
+.next/
+out/
+build/
+*.tsbuildinfo
+
 # Python
 __pycache__/
 *.py[cod]
@@ -5,12 +11,12 @@ __pycache__/
 .venv/
 *.egg-info/
 dist/
-build/
 .DS_Store
 
 # Environments
 .env
-.env.*
+.env.local
+.env.*.local
 
 # Testing
 .pytest_cache/
@@ -29,4 +35,10 @@ dev_*.db
 test_real_pipeline.py
 test_graph_integration.py
 update_nb*.py
+
+# Dependencies
+node_modules/
+pnpm-debug.log
+npm-debug.log
+yarn-error.log
 
