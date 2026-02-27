@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Nav } from "@/components/nav";
 import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeletons";
 
 interface QAPair {
   question: string;
@@ -148,11 +149,37 @@ function OutlineTree({ items, depth = 0 }: { items: OutlineItem[]; depth?: numbe
 }
 
 export default function ArtifactsPage() {
-  const [selectedId, setSelectedId] = useState<string>(MOCK_ARTIFACTS[0].id);
+  const [artifacts, setArtifacts] = useState<Artifact[]>(MOCK_ARTIFACTS);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [expandedPairs, setExpandedPairs] = useState<Set<number>>(new Set());
   const [search, setSearch] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const selected = MOCK_ARTIFACTS.find((a) => a.id === selectedId)!;
+  // Fetch artifacts on mount
+  useEffect(() => {
+    const fetchArtifacts = async () => {
+      try {
+        setIsLoading(true);
+        const response = await fetch('/api/artifacts');
+        if (!response.ok) throw new Error('Failed to fetch artifacts');
+        const data = await response.json();
+        setArtifacts(data.length ? data : MOCK_ARTIFACTS);
+        setSelectedId((data[0]?.id) || MOCK_ARTIFACTS[0].id);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'An error occurred');
+        setArtifacts(MOCK_ARTIFACTS);
+        setSelectedId(MOCK_ARTIFACTS[0].id);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchArtifacts();
+  }, []);
+
+  const selected = artifacts.find((a) => a.id === selectedId) || artifacts[0];
 
   const filteredPairs = selected.qaPairs.filter(
     (p) =>
@@ -172,6 +199,27 @@ export default function ArtifactsPage() {
   const avgScore =
     selected.qaPairs.reduce((s, p) => s + p.judgeScore, 0) /
     selected.qaPairs.length;
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Nav />
+        <main className="mx-auto max-w-7xl px-6 py-10">
+          <div className="mb-8 border-l-4 border-primary pl-5">
+            <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-primary">
+              Artifacts
+            </p>
+            <h1 className="text-balance text-3xl font-bold tracking-tight text-foreground">
+              Processed chapters
+            </h1>
+          </div>
+          <div className="p-4 bg-destructive/10 border border-destructive/20 rounded text-destructive">
+            {error}
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -194,40 +242,48 @@ export default function ArtifactsPage() {
           {/* Sidebar: artifact list */}
           <div className="space-y-2 lg:col-span-1">
             <p className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              {MOCK_ARTIFACTS.length} artifacts
+              {isLoading ? "Loading..." : `${artifacts.length} artifacts`}
             </p>
-            {MOCK_ARTIFACTS.map((artifact) => (
-              <button
-                key={artifact.id}
-                onClick={() => {
-                  setSelectedId(artifact.id);
-                  setExpandedPairs(new Set());
-                  setSearch("");
-                }}
-                className={cn(
-                  "w-full border p-3 text-left transition-colors",
-                  selectedId === artifact.id
-                    ? "border-l-2 border-primary bg-primary/5"
-                    : "border-border bg-card hover:bg-surface"
-                )}
-              >
-                <p className="font-mono text-xs text-muted-foreground">
-                  {artifact.source}
-                </p>
-                <p className="mt-0.5 text-sm font-medium text-foreground text-balance">
-                  {artifact.section}
-                </p>
-                <div className="mt-2 flex items-center gap-2">
-                  <span className="font-mono text-[10px] text-muted-foreground">
-                    {artifact.qaPairs.length} Q&A
-                  </span>
-                  <span className="text-muted-foreground/30">·</span>
-                  <span className="font-mono text-[10px] text-muted-foreground">
-                    {new Date(artifact.createdAt).toLocaleDateString()}
-                  </span>
-                </div>
-              </button>
-            ))}
+            {isLoading ? (
+              <div className="space-y-2">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <Skeleton key={i} className="h-20" />
+                ))}
+              </div>
+            ) : (
+              artifacts.map((artifact) => (
+                <button
+                  key={artifact.id}
+                  onClick={() => {
+                    setSelectedId(artifact.id);
+                    setExpandedPairs(new Set());
+                    setSearch("");
+                  }}
+                  className={cn(
+                    "w-full border p-3 text-left transition-colors",
+                    selectedId === artifact.id
+                      ? "border-l-2 border-primary bg-primary/5"
+                      : "border-border bg-card hover:bg-surface"
+                  )}
+                >
+                  <p className="font-mono text-xs text-muted-foreground">
+                    {artifact.source}
+                  </p>
+                  <p className="mt-0.5 text-sm font-medium text-foreground text-balance">
+                    {artifact.section}
+                  </p>
+                  <div className="mt-2 flex items-center gap-2">
+                    <span className="font-mono text-[10px] text-muted-foreground">
+                      {artifact.qaPairs.length} Q&A
+                    </span>
+                    <span className="text-muted-foreground/30">·</span>
+                    <span className="font-mono text-[10px] text-muted-foreground">
+                      {new Date(artifact.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
+                </button>
+              ))
+            )}
           </div>
 
           {/* Main: artifact detail */}

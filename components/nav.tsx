@@ -8,6 +8,7 @@ const navLinks = [
   { href: "/", label: "Generate" },
   { href: "/artifacts", label: "Artifacts" },
   { href: "/study", label: "Study" },
+  { href: "/analytics", label: "Analytics" },
 ];
 
 export function Nav() {
