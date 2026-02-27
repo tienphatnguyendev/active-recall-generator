@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useAuth } from '@/components/auth/auth-context';
+import { Nav } from '@/components/nav';
 import { StatsOverview } from '@/components/analytics/stats-overview';
 import { StreakWidget } from '@/components/analytics/streak-widget';
 import { WeeklyActivityChart } from '@/components/analytics/weekly-activity-chart';
@@ -39,14 +39,11 @@ interface AnalyticsData {
 }
 
 export default function AnalyticsPage() {
-  const { user } = useAuth();
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!user) return;
-
     const fetchAnalytics = async () => {
       try {
         setIsLoading(true);
@@ -68,27 +65,26 @@ export default function AnalyticsPage() {
     };
 
     fetchAnalytics();
-  }, [user]);
-
-  if (!user) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <p className="text-muted-foreground">Please log in to view analytics.</p>
-      </div>
-    );
-  }
+  }, []);
 
   return (
-    <main className="flex-1 overflow-auto">
-      <div className="container mx-auto px-4 py-8">
+    <div className="min-h-screen bg-background">
+      <Nav />
+      <main className="mx-auto max-w-7xl px-6 py-10 overflow-auto">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-foreground">Analytics</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Track your learning progress and performance metrics
-            </p>
-          </div>
+        <div className="mb-8 border-l-4 border-primary pl-5">
+          <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-primary">
+            Analytics
+          </p>
+          <h1 className="text-balance text-3xl font-bold tracking-tight text-foreground">
+            Learning analytics dashboard
+          </h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Track your progress, identify weak areas, and optimize your study strategy.
+          </p>
+        </div>
+
+        <div className="mb-6 flex justify-end">
           <AnalyticsExportButton />
         </div>
 
@@ -161,7 +157,7 @@ export default function AnalyticsPage() {
             </p>
           </div>
         )}
-      </div>
-    </main>
+      </main>
+    </div>
   );
 }

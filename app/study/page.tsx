@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Nav } from "@/components/nav";
 import { cn } from "@/lib/utils";
 
@@ -74,13 +74,43 @@ function ProgressBar({ value, max }: { value: number; max: number }) {
 }
 
 export default function StudyPage() {
+  const [cards, setCards] = useState<(QAPair & { id: string })[]>(ALL_PAIRS);
+  const [isLoadingCards, setIsLoadingCards] = useState(true);
   const [sessionStarted, setSessionStarted] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
   const [results, setResults] = useState<CardResult[]>([]);
   const [sessionDone, setSessionDone] = useState(false);
 
-  const cards = ALL_PAIRS;
+  // Fetch study cards on mount
+  useEffect(() => {
+    const fetchCards = async () => {
+      try {
+        setIsLoadingCards(true);
+        const response = await fetch('/api/artifacts');
+        if (response.ok) {
+          const artifacts = await response.json();
+          const newCards = artifacts.flatMap((artifact: any) =>
+            artifact.qaPairs.map((qa: any) => ({
+              id: qa.id || Math.random().toString(36),
+              question: qa.question,
+              answer: qa.answer,
+              source: artifact.source,
+              judgeScore: qa.judgeScore || 0.85,
+            }))
+          );
+          if (newCards.length > 0) setCards(newCards);
+        }
+      } catch (err) {
+        console.log("[v0] Failed to fetch study cards, using mock data");
+        setCards(ALL_PAIRS);
+      } finally {
+        setIsLoadingCards(false);
+      }
+    };
+
+    fetchCards();
+  }, []);
   const current = cards[currentIndex];
 
   const startSession = () => {
@@ -131,11 +161,11 @@ export default function StudyPage() {
                 <div>
                   <p className="text-sm font-semibold text-foreground">All artifacts</p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    {cards.length} cards across {new Set(cards.map((c) => c.source)).size} sources
+                    {isLoadingCards ? "Loading..." : `${cards.length} cards across ${new Set(cards.map((c) => c.source)).size} sources`}
                   </p>
                 </div>
                 <span className="font-mono text-2xl font-semibold text-foreground">
-                  {cards.length}
+                  {isLoadingCards ? "..." : cards.length}
                 </span>
               </div>
 
@@ -153,7 +183,8 @@ export default function StudyPage() {
 
               <button
                 onClick={startSession}
-                className="flex w-full items-center justify-center gap-2 bg-primary py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+                disabled={isLoadingCards || cards.length === 0}
+                className="flex w-full items-center justify-center gap-2 bg-primary py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
               >
                 Start session
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
