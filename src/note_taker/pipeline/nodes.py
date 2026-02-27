@@ -52,27 +52,72 @@ Rules:
 - source_context should be the relevant sentence(s) from the source text.
 - The outline should have level 1 for main topics and level 2 for subtopics."""
 
-def draft_node(state: GraphState) -> dict:
-    """Generate outline and Q&A pairs from source content."""
-    from note_taker.models import FinalArtifactV1, DraftResponse
+OUTLINE_SYSTEM_PROMPT = """You are an expert educator planning a study session.
+Given a section of a textbook, generate a 2-level hierarchical outline of the key concepts.
+Level 1 should cover main topics. Level 2 should cover detailed subtopics.
+This outline will be used to generate active recall questions."""
+
+def outline_draft_node(state: GraphState) -> dict:
+    """Generate a hierarchical outline from source content."""
+    from note_taker.models import OutlineResponse
     
-    llm = get_llm(model_name="llama-3.3-70b-versatile")
-    structured_llm = llm.with_structured_output(DraftResponse)
+    # Fast tier for outline generation
+    llm = get_llm(tier="fast")
+    structured_llm = llm.with_structured_output(OutlineResponse)
     
     response = invoke_with_backoff(
         structured_llm,
         [
-            {"role": "system", "content": DRAFT_SYSTEM_PROMPT},
+            {"role": "system", "content": OUTLINE_SYSTEM_PROMPT},
             {"role": "user", "content": state["source_content"]},
+        ],
+        token_estimate=1000
+    )
+
+    return {"outline": response}
+
+QA_SYSTEM_PROMPT = """You are an expert educator creating active recall study materials.
+Given a section of a textbook and a hierarchical outline of its key concepts, generate:
+One question-and-answer pair per subpoint in the outline.
+
+Rules:
+- Questions should test understanding, not just recall of facts.
+- Answers should be concise but complete.
+- source_context should be the relevant sentence(s) from the source text."""
+
+def qa_draft_node(state: GraphState) -> dict:
+    """Generate Q&A pairs from source content and outline."""
+    from note_taker.models import QADraftResponse, FinalArtifactV1
+    
+    # Needs outline from previous node
+    outline_response = state.get("outline")
+    if not outline_response:
+        raise ValueError("qa_draft_node requires an outline but none was found in state.")
+        
+    outline_text = "\n".join(
+        f"{'  ' * (item.level - 1)}- {item.title}" 
+        for item in outline_response.outline
+    )
+
+    # Reasoning tier for Q&A generation
+    llm = get_llm(tier="reasoning")
+    structured_llm = llm.with_structured_output(QADraftResponse)
+    
+    response = invoke_with_backoff(
+        structured_llm,
+        [
+            {"role": "system", "content": QA_SYSTEM_PROMPT},
+            {"role": "user", "content": f"Source:\n{state['source_content']}\n\nOutline:\n{outline_text}"},
         ],
         token_estimate=2000
     )
 
     artifact = FinalArtifactV1(
         source_hash=state["source_hash"],
-        outline=response.outline,
+        outline=outline_response.outline,
         qa_pairs=response.qa_pairs,
     )
+    
     return {"artifact": artifact}
 
 JUDGE_SYSTEM_PROMPT = """You are a strict educational content reviewer.
@@ -89,7 +134,7 @@ def judge_node(state: GraphState) -> dict:
     """Score each Q&A pair on accuracy, clarity, and recall-worthiness."""
     from note_taker.models import JudgeVerdict
     
-    llm = get_llm(model_name="llama-3.1-8b-instant")
+    llm = get_llm(tier="fast")
     structured_llm = llm.with_structured_output(JudgeVerdict)
 
     qa_text = "\n".join(
@@ -135,7 +180,7 @@ def revise_node(state: GraphState) -> dict:
     if not failing_indices:
         return {"revision_count": state.get("revision_count", 0) + 1}
 
-    llm = get_llm(model_name="llama-3.3-70b-versatile")
+    llm = get_llm(tier="reasoning")
     structured_llm = llm.with_structured_output(RevisionResponse)
 
     failing_text = "\n".join(

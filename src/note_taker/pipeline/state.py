@@ -1,5 +1,5 @@
 from typing import TypedDict, Optional
-from note_taker.models import FinalArtifactV1
+from note_taker.models import FinalArtifactV1, OutlineResponse
 
 class GraphState(TypedDict):
     """The state of the LangGraph content processing pipeline."""
@@ -11,6 +11,9 @@ class GraphState(TypedDict):
     # Set by check_database_node
     artifact: Optional[FinalArtifactV1]
     skip_processing: bool
+
+    # Set by outline_draft_node
+    outline: Optional[OutlineResponse]
 
     # Set by judge/revise loop
     revision_count: int

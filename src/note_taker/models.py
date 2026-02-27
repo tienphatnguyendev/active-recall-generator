@@ -1,5 +1,20 @@
-from typing import List, Optional
-from pydantic import BaseModel, Field
+from typing import List, Optional, Any
+from pydantic import BaseModel, Field, model_validator
+import json
+import ast
+
+def _parse_embedded_json(data: Any, field_name: str) -> Any:
+    if isinstance(data, dict):
+        val = data.get(field_name)
+        if isinstance(val, str):
+            try:
+                data[field_name] = json.loads(val)
+            except json.JSONDecodeError:
+                try:
+                    data[field_name] = ast.literal_eval(val)
+                except Exception:
+                    pass
+    return data
 
 class QuestionAnswerPair(BaseModel):
     """Represents a single active recall unit."""
@@ -35,14 +50,42 @@ class QAJudgement(BaseModel):
     feedback: str
 
 class DraftResponse(BaseModel):
-    """LLM response from the draft node."""
+    """LLM response from the draft node. Keeps qa_pairs for backward compatibility."""
     outline: List[OutlineItem]
     qa_pairs: List[QuestionAnswerPair]
+
+class OutlineResponse(BaseModel):
+    """LLM response from the outline draft node."""
+    outline: List[OutlineItem]
+    
+    @model_validator(mode="before")
+    @classmethod
+    def parse_str_to_list(cls, data: Any) -> Any:
+        return _parse_embedded_json(data, "outline")
+
+class QADraftResponse(BaseModel):
+    """LLM response from the QA draft node."""
+    qa_pairs: List[QuestionAnswerPair]
+    
+    @model_validator(mode="before")
+    @classmethod
+    def parse_str_to_list(cls, data: Any) -> Any:
+        return _parse_embedded_json(data, "qa_pairs")
 
 class JudgeVerdict(BaseModel):
     """LLM response from the judge node."""
     judgements: List[QAJudgement]
+    
+    @model_validator(mode="before")
+    @classmethod
+    def parse_str_to_list(cls, data: Any) -> Any:
+        return _parse_embedded_json(data, "judgements")
 
 class RevisionResponse(BaseModel):
     """LLM response from the revise node."""
     revised_pairs: List[QuestionAnswerPair]
+
+    @model_validator(mode="before")
+    @classmethod
+    def parse_str_to_list(cls, data: Any) -> Any:
+        return _parse_embedded_json(data, "revised_pairs")

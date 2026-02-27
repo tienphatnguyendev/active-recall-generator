@@ -1,7 +1,6 @@
 import os
 import pytest
 from unittest.mock import patch
-from note_taker.pipeline.nodes import draft_node
 from note_taker.pipeline.state import GraphState
 from note_taker.models import DraftResponse, OutlineItem, QuestionAnswerPair
 
@@ -17,28 +16,53 @@ def base_state():
         source_hash="abc123",
         force_refresh=False,
         artifact=None,
+        outline=None,  # new field
         skip_processing=False,
         revision_count=0,
     )
 
-def test_draft_node_creates_artifact(base_state):
-    """draft_node should create a FinalArtifactV1 with outline and qa_pairs."""
-    mock_response = DraftResponse(
-        outline=[OutlineItem(title="Introduction", level=1)],
-        qa_pairs=[QuestionAnswerPair(
-            question="What are agents?",
-            answer="Systems that reason and act autonomously.",
-            source_context="Agents are systems that reason and act autonomously.",
-        )]
+
+
+def test_outline_draft_node_creates_outline(base_state):
+    """outline_draft_node should create OutlineResponse and populate state['outline']."""
+    from note_taker.pipeline.nodes import outline_draft_node
+    from note_taker.models import OutlineResponse, OutlineItem
+    
+    mock_response = OutlineResponse(
+        outline=[OutlineItem(title="Intro", level=1), OutlineItem(title="Agents", level=2)]
     )
     with patch("note_taker.pipeline.nodes.get_llm") as mock_llm:
         mock_llm.return_value.with_structured_output.return_value.invoke.return_value = mock_response
-        result = draft_node(base_state)
+        result = outline_draft_node(base_state)
+        
+    assert result["outline"] is not None
+    assert len(result["outline"].outline) == 2
+    assert result["outline"].outline[0].title == "Intro"
 
+def test_qa_draft_node_creates_qa_pairs(base_state):
+    """qa_draft_node should create QADraftResponse based on outline and combine into FinalArtifactV1."""
+    from note_taker.pipeline.nodes import qa_draft_node
+    from note_taker.models import OutlineResponse, OutlineItem, QADraftResponse, QuestionAnswerPair
+    
+    # Needs outline from previous step
+    base_state["outline"] = OutlineResponse(
+        outline=[OutlineItem(title="Context", level=1)]
+    )
+    
+    mock_qa = QADraftResponse(
+        qa_pairs=[QuestionAnswerPair(
+            question="What is context?", answer="Important info", source_context="Context is nice."
+        )]
+    )
+    
+    with patch("note_taker.pipeline.nodes.get_llm") as mock_llm:
+        mock_llm.return_value.with_structured_output.return_value.invoke.return_value = mock_qa
+        result = qa_draft_node(base_state)
+        
     assert result["artifact"] is not None
     assert len(result["artifact"].outline) == 1
     assert len(result["artifact"].qa_pairs) == 1
-    assert result["artifact"].source_hash == "abc123"
+    assert result["artifact"].qa_pairs[0].question == "What is context?"
 
 def test_judge_node_scores_qa_pairs(base_state):
     """judge_node should fill in judge_score and judge_feedback on each Q&A pair."""
