@@ -76,27 +76,48 @@ def outline_draft_node(state: GraphState) -> dict:
 
     return {"outline": response}
 
-def draft_node(state: GraphState) -> dict:
-    """Generate outline and Q&A pairs from source content."""
-    from note_taker.models import FinalArtifactV1, DraftResponse
+QA_SYSTEM_PROMPT = """You are an expert educator creating active recall study materials.
+Given a section of a textbook and a hierarchical outline of its key concepts, generate:
+One question-and-answer pair per subpoint in the outline.
+
+Rules:
+- Questions should test understanding, not just recall of facts.
+- Answers should be concise but complete.
+- source_context should be the relevant sentence(s) from the source text."""
+
+def qa_draft_node(state: GraphState) -> dict:
+    """Generate Q&A pairs from source content and outline."""
+    from note_taker.models import QADraftResponse, FinalArtifactV1
     
-    llm = get_llm(model_name="llama-3.3-70b-versatile")
-    structured_llm = llm.with_structured_output(DraftResponse)
+    # Needs outline from previous node
+    outline_response = state.get("outline")
+    if not outline_response:
+        raise ValueError("qa_draft_node requires an outline but none was found in state.")
+        
+    outline_text = "\n".join(
+        f"{'  ' * (item.level - 1)}- {item.title}" 
+        for item in outline_response.outline
+    )
+
+    # Reasoning tier for Q&A generation
+    llm = get_llm(tier="reasoning")
+    structured_llm = llm.with_structured_output(QADraftResponse)
     
     response = invoke_with_backoff(
         structured_llm,
         [
-            {"role": "system", "content": DRAFT_SYSTEM_PROMPT},
-            {"role": "user", "content": state["source_content"]},
+            {"role": "system", "content": QA_SYSTEM_PROMPT},
+            {"role": "user", "content": f"Source:\n{state['source_content']}\n\nOutline:\n{outline_text}"},
         ],
         token_estimate=2000
     )
 
     artifact = FinalArtifactV1(
         source_hash=state["source_hash"],
-        outline=response.outline,
+        outline=outline_response.outline,
         qa_pairs=response.qa_pairs,
     )
+    
     return {"artifact": artifact}
 
 JUDGE_SYSTEM_PROMPT = """You are a strict educational content reviewer.
