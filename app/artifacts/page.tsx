@@ -252,37 +252,37 @@ export default function ArtifactsPage() {
               </div>
             ) : (
               artifacts.map((artifact) => (
-              <button
-                key={artifact.id}
-                onClick={() => {
-                  setSelectedId(artifact.id);
-                  setExpandedPairs(new Set());
-                  setSearch("");
-                }}
-                className={cn(
-                  "w-full border p-3 text-left transition-colors",
-                  selectedId === artifact.id
-                    ? "border-l-2 border-primary bg-primary/5"
-                    : "border-border bg-card hover:bg-surface"
-                )}
-              >
-                <p className="font-mono text-xs text-muted-foreground">
-                  {artifact.source}
-                </p>
-                <p className="mt-0.5 text-sm font-medium text-foreground text-balance">
-                  {artifact.section}
-                </p>
-                <div className="mt-2 flex items-center gap-2">
-                  <span className="font-mono text-[10px] text-muted-foreground">
-                    {artifact.qaPairs.length} Q&A
-                  </span>
-                  <span className="text-muted-foreground/30">·</span>
-                  <span className="font-mono text-[10px] text-muted-foreground">
-                    {new Date(artifact.createdAt).toLocaleDateString()}
-                  </span>
-                </div>
-              </button>
-            ))}
+                  <button
+                    key={artifact.id}
+                    onClick={() => {
+                      setSelectedId(artifact.id);
+                      setExpandedPairs(new Set());
+                      setSearch("");
+                    }}
+                    className={cn(
+                      "w-full border p-3 text-left transition-colors",
+                      selectedId === artifact.id
+                        ? "border-l-2 border-primary bg-primary/5"
+                        : "border-border bg-card hover:bg-surface"
+                    )}
+                  >
+                    <p className="font-mono text-xs text-muted-foreground">
+                      {artifact.source}
+                    </p>
+                    <p className="mt-0.5 text-sm font-medium text-foreground text-balance">
+                      {artifact.section}
+                    </p>
+                    <div className="mt-2 flex items-center gap-2">
+                      <span className="font-mono text-[10px] text-muted-foreground">
+                        {artifact.qaPairs.length} Q&A
+                      </span>
+                      <span className="text-muted-foreground/30">·</span>
+                      <span className="font-mono text-[10px] text-muted-foreground">
+                        {new Date(artifact.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </button>
+                ))}
           </div>
 
           {/* Main: artifact detail */}
