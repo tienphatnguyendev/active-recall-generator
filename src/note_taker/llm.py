@@ -1,9 +1,14 @@
-"""Groq LLM client for the note-taker pipeline."""
+"""Multi-provider LLM factory with tiered routing."""
 import logging
 import os
+import time
+from collections import deque
+from typing import Dict, List, Optional, Tuple
 
-from groq import RateLimitError
+from langchain_core.language_models import BaseChatModel
 from langchain_groq import ChatGroq
+from langchain_cerebras import ChatCerebras
+from langchain_sambanova import ChatSambaNova
 from tenacity import (
     retry,
     retry_if_exception_type,
@@ -12,11 +17,33 @@ from tenacity import (
     before_sleep_log,
 )
 
-import time
-from collections import deque
-from typing import List, Tuple, Optional
-
 logger = logging.getLogger(__name__)
+
+# --- Provider Configurations ---
+TIER_CONFIGS: Dict[str, List[dict]] = {
+    "fast": [
+        {"provider": "cerebras", "model": "llama3.1-8b",
+         "env_key": "CEREBRAS_API_KEYS", "fallback_env": "CEREBRAS_API_KEY",
+         "tpm": 60_000},
+        {"provider": "groq", "model": "llama-3.1-8b-instant",
+         "env_key": "GROQ_API_KEYS", "fallback_env": "GROQ_API_KEY",
+         "tpm": 6_000},
+        {"provider": "sambanova", "model": "Meta-Llama-3.1-8B-Instruct",
+         "env_key": "SAMBANOVA_API_KEYS", "fallback_env": "SAMBANOVA_API_KEY",
+         "tpm": None},
+    ],
+    "reasoning": [
+        {"provider": "cerebras", "model": "gpt-oss-120b",
+         "env_key": "CEREBRAS_API_KEYS", "fallback_env": "CEREBRAS_API_KEY",
+         "tpm": 64_000},
+        {"provider": "groq", "model": "llama-3.3-70b-versatile",
+         "env_key": "GROQ_API_KEYS", "fallback_env": "GROQ_API_KEY",
+         "tpm": 12_000},
+        {"provider": "sambanova", "model": "DeepSeek-R1-Distill-Llama-70B",
+         "env_key": "SAMBANOVA_API_KEYS", "fallback_env": "SAMBANOVA_API_KEY",
+         "tpm": None},
+    ],
+}
 
 class TokenTracker:
     """Tracks token usage over a rolling 60-second window to prevent 429 errors."""
@@ -52,11 +79,7 @@ class TokenTracker:
             if current_usage + estimated_next_tokens <= limit:
                 break
                 
-            # Need to wait. Calculate how long until the oldest request in the window expires.
-            # Even if we wait just for the first one to expire, we might still be over the limit,
-            # so we loop until we have enough space.
             if not self.usage:
-                # This should theoretically not happen if current_usage > 0
                 break
                 
             oldest_ts, _ = self.usage[0]
@@ -71,43 +94,70 @@ class TokenTracker:
 # Global tracker instance
 tracker = TokenTracker()
 
-_current_key_index = 0
+class TieredLLMFactory:
+    """Manages provider rotation and key cycling for tiered LLM access."""
 
-def get_llm(model_name: str = "llama-3.3-70b-versatile") -> ChatGroq:
-    """Return a configured ChatGroq instance.
-    
-    Uses the GROQ_API_KEYS or GROQ_API_KEY environment variable for authentication,
-    rotating keys if multiple are provided.
-    """
-    global _current_key_index
-    keys_str = os.environ.get("GROQ_API_KEYS", "")
-    if keys_str:
-        keys = [k.strip() for k in keys_str.split(",") if k.strip()]
-    else:
-        # Fallback to single key
-        single_key = os.environ.get("GROQ_API_KEY")
-        keys = [single_key] if single_key else []
-        
-    if not keys:
-        logger.warning("No Groq API keys found in environment. Set GROQ_API_KEYS or GROQ_API_KEY.")
+    def __init__(self):
+        self._tier_indices: Dict[str, int] = {"fast": 0, "reasoning": 0}
+        self._key_indices: Dict[str, int] = {}  # per env_key
 
-    selected_key = None
-    if keys:
-        selected_key = keys[_current_key_index % len(keys)]
-        _current_key_index += 1
+    def reset(self):
+        self._tier_indices = {"fast": 0, "reasoning": 0}
+        self._key_indices = {}
 
-    kwargs = {
-        "model": model_name,
-        "temperature": 0,
-    }
-    if selected_key:
-        kwargs["api_key"] = selected_key
+    def _get_keys(self, config: dict) -> List[str]:
+        keys_str = os.environ.get(config["env_key"], "")
+        if keys_str:
+            return [k.strip() for k in keys_str.split(",") if k.strip()]
+        single = os.environ.get(config.get("fallback_env", ""), "")
+        return [single] if single else []
 
-    return ChatGroq(**kwargs)
+    def _next_key(self, env_key: str, keys: List[str]) -> str:
+        idx = self._key_indices.get(env_key, 0)
+        key = keys[idx % len(keys)]
+        self._key_indices[env_key] = idx + 1
+        return key
+
+    def _create_llm(self, config: dict, api_key: str) -> BaseChatModel:
+        provider = config["provider"]
+        model = config["model"]
+        if provider == "cerebras":
+            return ChatCerebras(api_key=api_key, model=model, temperature=0)
+        elif provider == "groq":
+            return ChatGroq(api_key=api_key, model=model, temperature=0)
+        elif provider == "sambanova":
+            return ChatSambaNova(
+                sambanova_api_key=api_key, model=model, temperature=0
+            )
+        raise ValueError(f"Unknown provider: {provider}")
+
+    def get_llm(self, tier: str = "reasoning") -> BaseChatModel:
+        configs = TIER_CONFIGS[tier]
+        idx = self._tier_indices[tier]
+
+        # Try providers in priority order, starting from current index
+        for offset in range(len(configs)):
+            config = configs[(idx + offset) % len(configs)]
+            keys = self._get_keys(config)
+            if keys:
+                api_key = self._next_key(config["env_key"], keys)
+                self._tier_indices[tier] = (idx + 1) % len(configs)
+                logger.info(
+                    f"[LLM Factory] tier={tier} → "
+                    f"{config['provider']}:{config['model']}"
+                )
+                return self._create_llm(config, api_key)
+
+        raise RuntimeError(f"No API keys configured for tier '{tier}'")
+
+_factory = TieredLLMFactory()
+
+def get_llm(tier: str = "reasoning") -> BaseChatModel:
+    return _factory.get_llm(tier)
 
 
 @retry(
-    retry=retry_if_exception_type(RateLimitError),
+    retry=retry_if_exception_type((Exception,)),  # Broad to catch different provider errors
     wait=wait_exponential(multiplier=1, min=4, max=60),
     stop=stop_after_attempt(5),
     before_sleep=before_sleep_log(logger, logging.WARNING),
@@ -116,26 +166,14 @@ def get_llm(model_name: str = "llama-3.3-70b-versatile") -> ChatGroq:
 def invoke_with_backoff(runnable, *args, token_estimate: int = 500, **kwargs):
     """Invoke a LangChain runnable with exponential backoff and proactive pacing.
 
-    Retries up to 5 times on ``groq.RateLimitError`` (HTTP 429).
+    Retries up to 5 times on exceptions (often rate limits).
     Also checks the ``TokenTracker`` to proactively sleep if close to the 
-    TPM limit (6,000 for llama-3.3-70b-versatile).
-
-    Args:
-        runnable: Any object with an ``.invoke(*args, **kwargs)`` method.
-        *args: Positional arguments forwarded to ``runnable.invoke``.
-        token_estimate: Optional estimate of tokens this request will use.
-            Used for proactive throttling. Default 500.
-        **kwargs: Keyword arguments forwarded to ``runnable.invoke``.
-
-    Returns:
-        The result of ``runnable.invoke(*args, **kwargs)``.
+    TPM limit (default 6000, can be adjusted based on active provider).
     """
-    # Proactively wait if we're approaching the rate limit
     tracker.wait_if_needed(token_estimate)
     
     response = runnable.invoke(*args, **kwargs)
     
-    # Track actual usage if available in metadata
     try:
         if hasattr(response, 'response_metadata'):
             usage = response.response_metadata.get('token_usage', {})
