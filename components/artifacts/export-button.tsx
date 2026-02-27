@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { api, ApiError } from "@/lib/api-client";
+import { ApiError, getAccessToken } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 
 type ExportFormat = "json" | "csv" | "pdf" | "anki";
@@ -33,9 +33,11 @@ export function ExportButton({ artifactId, className }: ExportButtonProps) {
         ? `/api/artifacts/${artifactId}/export?format=${format}`
         : `/api/artifacts/export?format=${format}`;
 
-      const res = await fetch(endpoint, {
-        headers: { Accept: "*/*" },
-      });
+      const token = getAccessToken();
+      const headers: Record<string, string> = { Accept: "*/*" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      const res = await fetch(endpoint, { headers });
 
       if (!res.ok) {
         throw new ApiError(res.status, "Export failed.");
