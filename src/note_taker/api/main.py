@@ -11,6 +11,7 @@ app = FastAPI(
 # Configure CORS for Next.js frontend
 origins = [
     "http://localhost:3000",
+    "https://active-recall-generator.vercel.app",
 ]
 
 app.add_middleware(
