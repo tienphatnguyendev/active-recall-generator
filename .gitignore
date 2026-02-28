@@ -42,3 +42,8 @@ pnpm-debug.log
 npm-debug.log
 yarn-error.log
 
+# Other DEV files
+.database.db
+.vercel/
+next-env.d.ts
+data/
