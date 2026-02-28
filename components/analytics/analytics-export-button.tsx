@@ -14,7 +14,7 @@ export function AnalyticsExportButton() {
     setError(null);
 
     try {
-      const res = await fetch(`/api/analytics/export?format=${format}`);
+      const res = await fetch(`/api/artifacts/export?format=${format}`);
       if (!res.ok) throw new ApiError(res.status, "Export failed.");
 
       const blob = await res.blob();
