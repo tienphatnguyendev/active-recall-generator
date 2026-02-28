@@ -1,71 +1,73 @@
-'use client';
-
-import { useEffect, useState } from 'react';
 import { Nav } from '@/components/nav';
-import { StatsOverview } from '@/components/analytics/stats-overview';
-import { StreakWidget } from '@/components/analytics/streak-widget';
-import { WeeklyActivityChart } from '@/components/analytics/weekly-activity-chart';
-import { MasteryDistributionChart } from '@/components/analytics/mastery-distribution-chart';
-import { PerformanceByTopic } from '@/components/analytics/performance-by-topic';
-import { ArtifactProgressDetail } from '@/components/analytics/artifact-progress-detail';
+import { createClient } from '@/utils/supabase/server';
+import { AnalyticsClient, type AnalyticsData } from './analytics-client';
 import { AnalyticsExportButton } from '@/components/analytics/analytics-export-button';
-import { Skeleton } from '@/components/ui/skeletons';
-import type { MasteryLevel } from '@/components/study/mastery-badge';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-interface AnalyticsData {
-  stats: { label: string; value: string | number; subValue?: string; trend?: "up" | "down" | "neutral"; trendValue?: string }[];
-  streak: {
-    currentStreak: number;
-    longestStreak: number;
-    studiedToday: boolean;
-    recentDays: { date: string; studied: boolean }[];
+export default async function AnalyticsPage() {
+  const supabase = await createClient();
+
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+
+  // If not authenticated, the middleware should handle the redirect,
+  // but we add a safety check here.
+  if (userError || !userData?.user) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Nav />
+        <main className="mx-auto max-w-7xl px-4 sm:px-6 py-8 sm:py-10">
+          <div className="border-l-2 border-destructive bg-destructive/5 px-4 py-3 text-sm text-destructive">
+            Please log in to view analytics.
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  const userId = userData.user.id;
+
+  const [streakRes, weeklyRes, masteryRes] = await Promise.all([
+    supabase.rpc('get_user_streak', { p_user_id: userId }),
+    supabase.rpc('get_weekly_activity', { p_user_id: userId }),
+    supabase.rpc('get_mastery_distribution', { p_user_id: userId }),
+  ]);
+
+  if (streakRes.error) console.error('Error fetching streak:', streakRes.error);
+  if (weeklyRes.error) console.error('Error fetching weekly activity:', weeklyRes.error);
+  if (masteryRes.error) console.error('Error fetching mastery distribution:', masteryRes.error);
+
+  const analyticsData: AnalyticsData = {
+    stats: [
+      {
+        label: 'Cards reviewed',
+        value: masteryRes.data?.totalCards || 0,
+        trend: 'neutral',
+      },
+      {
+        label: 'Cards mastered',
+        value: masteryRes.data?.data?.find((d: any) => d.level === 'mastered')?.count || 0,
+        trend: 'neutral',
+      },
+      {
+        label: 'Study streak',
+        value: streakRes.data?.currentStreak || 0,
+        subValue: 'Days',
+        trend: 'neutral',
+      },
+    ],
+    streak: {
+      currentStreak: streakRes.data?.currentStreak || 0,
+      longestStreak: streakRes.data?.longestStreak || 0,
+      studiedToday: streakRes.data?.studiedToday || false,
+      recentDays: streakRes.data?.recentDays || [],
+    },
+    weeklyActivity: weeklyRes.data || [],
+    masteryDistribution: {
+      data: masteryRes.data?.data || [],
+      totalCards: masteryRes.data?.totalCards || 0,
+    },
+    performanceByTopic: [], // TODO: Implement in future if needed
+    artifacts: [], // TODO: Implement in future if needed
   };
-  weeklyActivity: { date: string; cardsStudied: number; sessionCount: number }[];
-  masteryDistribution: {
-    data: { level: MasteryLevel; count: number }[];
-    totalCards: number;
-  };
-  performanceByTopic: { topic: string; source: string; totalCards: number; knownPct: number; unsurePct: number; unknownPct: number }[];
-  artifacts: {
-    artifactId: string;
-    section: string;
-    source: string;
-    mastery: MasteryLevel;
-    studyTimeline: { date: string; rating: "know" | "unsure" | "unknown" }[];
-    weakAreas: { question: string; timesUnknown: number; lastAttempted: string }[];
-    nextSessionSuggestion: string;
-  }[];
-}
-
-export default function AnalyticsPage() {
-  const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const fetchAnalytics = async () => {
-      try {
-        setIsLoading(true);
-        const response = await fetch('/api/analytics');
-        
-        if (!response.ok) {
-          throw new Error('Failed to fetch analytics');
-        }
-
-        const data = await response.json();
-        setAnalyticsData(data);
-        setError(null);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'An error occurred');
-        setAnalyticsData(null);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchAnalytics();
-  }, []);
 
   return (
     <div className="min-h-screen bg-background">
@@ -88,69 +90,14 @@ export default function AnalyticsPage() {
           <AnalyticsExportButton />
         </div>
 
-        {error && (
+        {(streakRes.error || weeklyRes.error || masteryRes.error) && (
           <div className="mb-6 border-l-2 border-destructive bg-destructive/5 px-4 py-3 text-sm text-destructive">
-            {error}
+            Some analytics data could not be loaded. Please try again later.
           </div>
         )}
 
-        {isLoading ? (
-          <div className="space-y-6">
-            <Skeleton className="h-40" />
-            <Skeleton className="h-80" />
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Skeleton className="h-80" />
-              <Skeleton className="h-80" />
-            </div>
-          </div>
-        ) : analyticsData ? (
-          <div className="space-y-6">
-            {/* Stats Overview Row */}
-            <StatsOverview stats={analyticsData.stats} />
-
-            {/* Streak and Activity Row */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <StreakWidget
-                currentStreak={analyticsData.streak.currentStreak}
-                longestStreak={analyticsData.streak.longestStreak}
-                studiedToday={analyticsData.streak.studiedToday}
-                recentDays={analyticsData.streak.recentDays}
-              />
-              <div className="md:col-span-2">
-                <WeeklyActivityChart data={analyticsData.weeklyActivity} />
-              </div>
-            </div>
-
-            {/* Charts Row */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <MasteryDistributionChart
-                data={analyticsData.masteryDistribution.data}
-                totalCards={analyticsData.masteryDistribution.totalCards}
-              />
-              <PerformanceByTopic topics={analyticsData.performanceByTopic} />
-            </div>
-
-            {/* Detailed Progress Section */}
-            <div>
-              <p className="mb-4 text-xs font-semibold uppercase tracking-wide text-foreground">
-                Artifact progress
-              </p>
-              <div className="space-y-8">
-                {analyticsData.artifacts.map((artifact) => (
-                  <ArtifactProgressDetail
-                    key={artifact.artifactId}
-                    artifactId={artifact.artifactId}
-                    section={artifact.section}
-                    source={artifact.source}
-                    mastery={artifact.mastery}
-                    studyTimeline={artifact.studyTimeline}
-                    weakAreas={artifact.weakAreas}
-                    nextSessionSuggestion={artifact.nextSessionSuggestion}
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
+        {analyticsData ? (
+          <AnalyticsClient data={analyticsData} />
         ) : (
           <div className="text-center py-12">
             <p className="text-muted-foreground">No analytics data available yet.</p>
