@@ -12,6 +12,9 @@ src/note_taker.egg-info/SOURCES.txt
 src/note_taker.egg-info/dependency_links.txt
 src/note_taker.egg-info/requires.txt
 src/note_taker.egg-info/top_level.txt
+src/note_taker/api/__init__.py
+src/note_taker/api/main.py
+src/note_taker/api/routes.py
 src/note_taker/pipeline/__init__.py
 src/note_taker/pipeline/graph.py
 src/note_taker/pipeline/nodes.py
@@ -22,3 +25,4 @@ tests/test_llm.py
 tests/test_models.py
 tests/test_pipeline_nodes.py
 tests/test_processing.py
+tests/test_token_tracker.py
