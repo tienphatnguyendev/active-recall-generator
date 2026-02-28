@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { logStudySession } from "@/app/actions/study";
 
 interface QAPair {
   question: string;
@@ -36,6 +37,7 @@ export function StudyClient({ initialCards }: { initialCards: (QAPair & { id: st
   const [flipped, setFlipped] = useState(false);
   const [results, setResults] = useState<CardResult[]>([]);
   const [sessionDone, setSessionDone] = useState(false);
+  const [cardStartTime, setCardStartTime] = useState<number>(Date.now());
 
   const current = cards[currentIndex];
 
@@ -45,9 +47,17 @@ export function StudyClient({ initialCards }: { initialCards: (QAPair & { id: st
     setResults([]);
     setSessionDone(false);
     setSessionStarted(true);
+    setCardStartTime(Date.now());
   };
 
   const rate = (rating: Rating) => {
+    const durationMs = Date.now() - cardStartTime;
+    
+    // Fire-and-forget server action
+    logStudySession(current.id, rating, durationMs).catch((err: unknown) => {
+      console.error("Error logging study session", err);
+    });
+
     const newResults = [...results, { id: current.id, rating }];
     setResults(newResults);
 
@@ -56,6 +66,7 @@ export function StudyClient({ initialCards }: { initialCards: (QAPair & { id: st
     } else {
       setCurrentIndex((i) => i + 1);
       setFlipped(false);
+      setCardStartTime(Date.now());
     }
   };
 

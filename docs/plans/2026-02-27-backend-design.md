@@ -59,12 +59,12 @@ The following tasks are broken down for creation in Linear.
 *   **Dependencies:** Task 1, Task 3
 *   **Acceptance Criteria:** The Artifacts browse page displays real data from Supabase; users can delete their own artifacts.
 
-#### Task 5: Implement Study Session Logging via Supabase
-*   **Description:** Update the study mode UI to push flashcard ratings (Know/Unsure/Unknown) directly to the `study_sessions` table in Supabase via the client.
+#### Task 5: Implement Study Session Logging via Server Actions
+*   **Description:** Update the study mode UI to push flashcard ratings (Know/Unsure/Unknown) to a Next.js Server Action. The Server Action will handle FSRS logic (calculating `state_before` and `state_after`) and insert the row securely into the `study_sessions` table in Supabase.
 *   **Priority:** Medium
-*   **Complexity:** Simple
+*   **Complexity:** Medium
 *   **Dependencies:** Task 1, Task 3
-*   **Acceptance Criteria:** Clicking a rating button during study mode successfully creates a row in the Supabase database.
+*   **Acceptance Criteria:** Clicking a rating button during study mode successfully triggers the Server Action, calculates FSRS states, and creates a row in the Supabase database.
 
 #### Task 6: Build Analytics Queries using Supabase
 *   **Description:** Replace the mock data in `/api/analytics` and `/api/study`. Write Supabase RPCs (stored procedures) or complex frontend queries to calculate: weekly activity, mastery distribution, and streak data based on the `study_sessions` table.
