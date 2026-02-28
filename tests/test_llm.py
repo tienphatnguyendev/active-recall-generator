@@ -14,6 +14,7 @@ def mock_api_keys(monkeypatch):
 
 def test_get_llm_fast_returns_chat_model():
     """get_llm(tier='fast') should return a usable chat model."""
+    pytest.importorskip("langchain_cerebras")
     _factory.reset()
     llm = get_llm(tier="fast")
     assert llm is not None
@@ -22,6 +23,7 @@ def test_get_llm_fast_returns_chat_model():
 
 def test_get_llm_reasoning_returns_chat_model():
     """get_llm(tier='reasoning') should return a usable chat model."""
+    pytest.importorskip("langchain_cerebras")
     _factory.reset()
     llm = get_llm(tier="reasoning")
     assert llm is not None
@@ -30,6 +32,7 @@ def test_get_llm_reasoning_returns_chat_model():
 
 def test_get_llm_rotates_providers():
     """Successive calls should rotate across providers in the tier."""
+    pytest.importorskip("langchain_cerebras")
     _factory.reset()
     llm1 = get_llm(tier="fast")
     llm2 = get_llm(tier="fast")

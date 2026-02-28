@@ -7,7 +7,12 @@ from typing import Dict, List, Optional, Tuple
 
 from langchain_core.language_models import BaseChatModel
 from langchain_groq import ChatGroq
-from langchain_cerebras import ChatCerebras
+try:
+    from langchain_cerebras import ChatCerebras
+except ImportError:
+    # Handle known compatibility issue with latest langchain_openai in Python 3.12
+    ChatCerebras = None
+
 from langchain_sambanova import ChatSambaNova
 from tenacity import (
     retry,
@@ -122,6 +127,8 @@ class TieredLLMFactory:
         provider = config["provider"]
         model = config["model"]
         if provider == "cerebras":
+            if ChatCerebras is None:
+                raise ImportError("ChatCerebras could not be imported. Please verify your langchain_cerebras installation.")
             return ChatCerebras(api_key=api_key, model=model, temperature=0)
         elif provider == "groq":
             return ChatGroq(api_key=api_key, model=model, temperature=0)
