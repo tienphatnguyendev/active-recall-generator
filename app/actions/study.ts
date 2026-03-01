@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/utils/supabase/server";
+import { logStudySessionSchema } from "@/lib/validations/study";
 
 // Simple single-card study log (existing interface, kept for backward compat)
 export async function logStudySession(
@@ -8,6 +9,9 @@ export async function logStudySession(
   ratingStr: "know" | "unsure" | "unknown",
   durationMs: number
 ) {
+  // Validate input
+  logStudySessionSchema.parse({ cardId, ratingStr, durationMs });
+
   const supabase = await createClient();
 
   const { data: { user }, error: authError } = await supabase.auth.getUser();
