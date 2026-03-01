@@ -12,52 +12,14 @@ The application has a well-structured Supabase schema with proper RLS policies, 
 
 | Severity | Count | Areas |
 |----------|-------|-------|
-| 🔴 Critical | 2 | Security, auth bypass, data integrity |
+| 🔴 Critical | 2 | Security (auth bypass, input validation) |
 | 🟠 Important | 8 | Architecture, performance, code quality |
 | 🟡 Minor | 6 | Cleanup, DX, polish |
+| 🔵 New (code review) | 5 | RPC ordering, dead code, type safety, import hygiene |
 
 ---
 
 ## 🔴 Critical Issues
-
-### ~~C1. Analytics API Route Bypasses RLS via Raw Supabase Client~~ [FIXED]
-
-**Status**: Resolved in [PR #24](https://github.com/tienphatnguyendev/active-recall-generator/pull/24) (SOLO-105)
-
-**File**: [route.ts](file:///Users/aaronng/repos/note-taker/app/api/analytics/route.ts)  
-**Also affects**: [study/route.ts](file:///Users/aaronng/repos/note-taker/app/api/study/route.ts)
-
-These API routes create a Supabase client using `createClient` from `@supabase/supabase-js` (the vanilla JS SDK), manually injecting the user's Bearer token into the global headers. This bypasses the `@supabase/ssr` cookie-based auth pattern used everywhere else.
-
-**Fix**: Use the SSR-aware server client consistently:
-- `app/api/study/route.ts` updated to use SSR client.
-- `app/api/analytics/route.ts` deleted (replaced by Server Component fetching).
-
----
-
-### ~~C2. SECURITY DEFINER RPCs Accept Arbitrary `p_user_id` Without Verification~~ [FIXED]
-
-**Status**: Resolved in [PR #25](https://github.com/tienphatnguyendev/active-recall-generator/pull/25) (SOLO-106)
-
-**File**: [analytics_rpcs.sql](file:///Users/aaronng/repos/note-taker/supabase/migrations/20260228000000_analytics_rpcs.sql)
-
-All three RPC functions (`get_user_streak`, `get_weekly_activity`, `get_mastery_distribution`) accept a `p_user_id UUID` parameter and are `SECURITY DEFINER`. This means any authenticated user who discovers the RPC name could call it with *any* user ID and view another user's analytics data.
-
-**Fix**: Removed `p_user_id` parameter and switched to `auth.uid()` directly with `SECURITY INVOKER`.
-
----
-
-### ~~C3. Analytics Page Fetch Missing Auth Header~~ [FIXED]
-
-**Status**: Resolved in [PR #26](https://github.com/tienphatnguyendev/active-recall-generator/pull/26) (SOLO-107)
-
-**File**: [analytics/page.tsx](file:///Users/aaronng/repos/note-taker/app/analytics/page.tsx#L50)
-
-The analytics page was a `'use client'` component that fetched `/api/analytics` without sending any authorization header.
-
-**Fix**: Converted the analytics page to a Server Component, fetching data directly via Supabase RPCs on the server.
-
----
 
 ### C4. No Server-Side Input Validation in Auth Actions
 
@@ -214,7 +176,7 @@ Multiple files use `any` type assertions, weakening TypeScript safety:
 | [artifacts/page.tsx](file:///Users/aaronng/repos/note-taker/app/artifacts/page.tsx#L23) | 23 | `(card: any) =>` |
 | [study/page.tsx](file:///Users/aaronng/repos/note-taker/app/study/page.tsx#L29) | 29 | `(card: any) =>` |
 | [study/route.ts](file:///Users/aaronng/repos/note-taker/app/api/study/route.ts#L108) | 108 | `results.map((r: any) =>` |
-| [analytics/route.ts](file:///Users/aaronng/repos/note-taker/app/api/analytics/route.ts#L51) | 51 | `(d: any) =>` |
+| [analytics/page.tsx](file:///Users/aaronng/repos/note-taker/app/analytics/page.tsx#L45) | 45 | `(d: any) => d.level` |
 
 **Fix**: Generate Supabase types with `supabase gen types typescript` and use them throughout.
 
@@ -260,10 +222,6 @@ const isPublicRoute = publicRoutes.some(r => request.nextUrl.pathname.startsWith
 ---
 
 ## 🟡 Minor Issues
-
-### ~~M1. egg-info Directory Committed~~ [FIXED]
-
-**Status**: Resolved. Build artifact `src/note_taker.egg-info/` was removed and should be ignored by git.
 
 ### M2. updated_at Column Never Auto-Updated
 
@@ -315,24 +273,105 @@ Should be loaded from environment variables for deploy flexibility.
 
 ---
 
+## 🔵 New Issues (2026-03-01 Code Review)
+
+### N1. `get_mastery_distribution` RPC Returns Unordered `jsonb_agg`
+
+**Severity**: Medium  
+**Location**: [20260301000000_fix_rpc_security.sql](file:///Users/aaronng/repos/note-taker/supabase/migrations/20260301000000_fix_rpc_security.sql#L138-L141)
+
+The `jsonb_agg` in the `get_mastery_distribution` RPC has no `ORDER BY` clause. The `unnest(ARRAY['mastered', 'reviewing', 'learning', 'new'])` in the `levels` CTE also does not guarantee order after the `LEFT JOIN`. This means the mastery level array in the response may arrive in arbitrary order, causing inconsistent chart rendering on the frontend.
+
+**Recommended Action**: Add `ORDER BY` to the `jsonb_agg`:
+```sql
+SELECT jsonb_agg(
+    jsonb_build_object('level', l.level, 'count', COALESCE(cs.cnt, 0))
+    ORDER BY CASE l.level WHEN 'mastered' THEN 1 WHEN 'reviewing' THEN 2 WHEN 'learning' THEN 3 WHEN 'new' THEN 4 END
+) INTO v_result
+```
+
+---
+
+### N2. Residual `any` Type in Fixed Analytics Page
+
+**Severity**: Low  
+**Location**: [analytics/page.tsx#L45](file:///Users/aaronng/repos/note-taker/app/analytics/page.tsx#L45)
+
+```typescript
+value: masteryRes.data?.data?.find((d: any) => d.level === 'mastered')?.count || 0,
+```
+
+The C3 fix correctly converted the page to a Server Component, but left one `any` type assertion. This should use the `MasteryLevel` type already defined in `analytics-client.tsx`.
+
+**Recommended Action**: Type `d` as `{ level: string; count: number }` or import the proper type.
+
+---
+
+### N3. Dead-Code Null Check in Analytics Page
+
+**Severity**: Low  
+**Location**: [analytics/page.tsx#L97-L106](file:///Users/aaronng/repos/note-taker/app/analytics/page.tsx#L97-L106)
+
+```typescript
+{analyticsData ? (
+  <AnalyticsClient data={analyticsData} />
+) : (
+  <div>No analytics data available yet.</div>  // ← never reached
+)}
+```
+
+`analyticsData` is an object literal constructed on L36–68 — it is always truthy (even with all zeros/empty arrays). The `null` fallback branch is dead code.
+
+**Recommended Action**: Remove the ternary and render `<AnalyticsClient>` directly. If a "no data" state is desired, check for meaningful content (e.g., `masteryDistribution.totalCards === 0`).
+
+---
+
+### N4. `study.ts` Server Action Imports from Duplicate Client Module
+
+**Severity**: Medium  
+**Location**: [actions/study.ts#L3](file:///Users/aaronng/repos/note-taker/app/actions/study.ts#L3)
+
+```typescript
+import { createClient } from "@/lib/supabase/server";
+```
+
+While the C1 fix consolidated API routes to use `@/utils/supabase/server`, the `logStudySession` server action still imports from the duplicate `@/lib/supabase/server` (issue I1). This is not a bug (both modules are functionally identical), but it perpetuates the import inconsistency that I1 describes.
+
+**Recommended Action**: Update the import to `@/utils/supabase/server` when consolidating I1.
+
+---
+
+### N5. `AnalyticsExportButton` Imported in Both Page and Client Component
+
+**Severity**: Low  
+**Location**: [analytics/page.tsx#L4](file:///Users/aaronng/repos/note-taker/app/analytics/page.tsx#L4) and [analytics-client.tsx#L9](file:///Users/aaronng/repos/note-taker/app/analytics/analytics-client.tsx#L9)
+
+`AnalyticsExportButton` is imported in both `page.tsx` and `analytics-client.tsx`. In `page.tsx` it is rendered on L88. In `analytics-client.tsx` it is imported but **not rendered** in the JSX — it's a dead import that increases the client bundle unnecessarily.
+
+**Recommended Action**: Remove the unused import from `analytics-client.tsx`.
+
+---
+
 ## Priority Matrix
 
 | Priority | Issue | Effort | Impact |
 |----------|-------|--------|--------|
-| ~~🔴 P0~~ | ~~C2: RPC accepts arbitrary user ID~~ | ~~Low~~ | ~~Fixed~~ |
 | 🔴 P0 | C5: Export routes never verify token | Low | Auth bypass |
-| ~~🔴 P0~~ | ~~C3: Analytics page missing auth header~~ | ~~Low~~ | ~~Fixed~~ |
-| ~~🔴 P1~~ | ~~C1: Raw Supabase client in API routes~~ | ~~Medium~~ | ~~Fixed~~ |
 | 🔴 P1 | C4: No server-side input validation | Medium | Injection/abuse risk |
 | 🟠 P2 | I1: Duplicate server client modules | Low | DX confusion, import inconsistency |
 | 🟠 P2 | I8: Middleware auth route gap | Low | Forgot-password redirect bug |
 | 🟠 P2 | I5: Missing database indexes | Low | Performance at scale |
 | 🟠 P2 | I2: N+1 card updates | Medium | Performance bottleneck |
+| 🟠 P2 | N1: Unordered RPC `jsonb_agg` | Low | Inconsistent chart rendering |
 | 🟠 P3 | I3: Dual study session paths | Medium | Maintenance burden |
 | 🟠 P3 | I4: Generate page simulation | High | Feature gap |
 | 🟠 P3 | I6: `any` types | Medium | Type safety |
 | 🟠 P3 | I7: Mock data in production | Low | Bundle hygiene |
-| 🟡 P4 | M1-M7 | Low each | Polish and hardening |
+| 🟠 P3 | N4: Study action uses duplicate client | Low | Import inconsistency |
+| 🟡 P4 | N2: Residual `any` in analytics page | Low | Type safety |
+| 🟡 P4 | N3: Dead-code null check | Low | Code clarity |
+| 🟡 P4 | N5: Dead import in analytics client | Low | Bundle hygiene |
+| 🟡 P4 | M2-M7 | Low each | Polish and hardening |
 
 ---
 
