@@ -1,3 +1,6 @@
+from dotenv import load_dotenv
+load_dotenv()  # Load .env for local development
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from note_taker.api.routes import router as api_router
