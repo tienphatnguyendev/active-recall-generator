@@ -24,6 +24,26 @@ This project uses `uv` for environment and dependency management.
     uv pip install -e .
     ```
 
+## Local Development
+
+For full-stack local development, we use the Vercel CLI for the frontend and Render CLI to interact with backend services.
+
+### Frontend (Vercel)
+The Next.js frontend is deployed on Vercel. Use the Vercel CLI to manage environment variables and run the dev server.
+1. Install Vercel CLI: `npm i -g vercel`
+2. Link the project: `vercel link`
+3. Pull environment variables: `vercel env pull .env.local`
+4. Start development server: `vercel dev`
+
+### Backend (Render)
+The FastAPI backend is deployed on Render. Use the Render CLI for environment management and local execution.
+1. Install Render CLI: `brew install render` (macOS) or visit [Render CLI Docs](https://render.com/docs/cli)
+2. Authenticate: `render login`
+3. Start the backend server locally (respects `render.yaml`):
+   ```bash
+   uv run uvicorn note_taker.api.main:app --reload --port 8000
+   ```
+
 ## Project Architecture
 
 The project is a CLI tool named "note-taker" that processes Markdown files and generates active recall artifacts (outlines and Q&A pairs).
@@ -92,6 +112,7 @@ The AI agent **MUST** follow this strict sequence of skills for all coding tasks
 -   **Debugging**: Follow `systematic-debugging` (Investigate -> Analyze -> Hypothesize -> Fix).
 -   **Verification Gate**: No claim of "fixed" without terminal evidence.
 -   **Linear Status Rule**: Only set a Linear issue to **In Progress**. **NEVER manually set it to Done.** The GitHub ↔ Linear integration handles that automatically when a PR referencing the issue is merged.
+-   **Main Branch Protection**: **Never push directly to the main branch.** All changes must be made on a feature branch and submitted via a Pull Request (PR) to ensure code quality, require code reviews, and prevent breaking changes from reaching production.
 -   **Branching Strategy for Sub-issues/Bugs**:
     -   If the sub-issue/bug **depends on unmerged changes** from a parent issue, branch from the **parent branch** (creates a Stacked PR).
     -   If the sub-issue/bug is **unrelated** to the parent issue's changes, or the parent is already merged, branch from **main**.
