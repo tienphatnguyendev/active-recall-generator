@@ -4,6 +4,7 @@ import { useState, useRef, useCallback } from "react";
 import { Nav } from "@/components/nav";
 import { PipelineStatus, DEFAULT_STAGES } from "@/components/pipeline-status";
 import { usePipelineSSE, PipelineEvent } from "@/hooks/use-pipeline-sse";
+import { revalidateArtifacts } from "@/app/actions/artifacts";
 
 const SAMPLE_MARKDOWN = `# The Water Cycle
 
@@ -158,6 +159,7 @@ export default function GeneratePage() {
           });
         });
       }
+      await revalidateArtifacts();
       setIsDone(true);
     } catch (err) {
       console.error("Pipeline execution failed:", err);
