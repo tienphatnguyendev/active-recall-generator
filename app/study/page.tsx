@@ -1,6 +1,7 @@
 import { Nav } from "@/components/nav";
 import { createClient } from "@/utils/supabase/server";
 import { StudyClient } from "./study-client";
+import { parseArtifactDisplay } from "@/lib/artifact-utils";
 
 export default async function StudyPage() {
   const supabase = await createClient();
@@ -30,7 +31,7 @@ export default async function StudyPage() {
       id: card.id || Math.random().toString(36), // fallback id just in case
       question: card.question,
       answer: card.answer,
-      source: artifact.source_hash ? artifact.source_hash.substring(0, 8) + "..." : "Unknown Source",
+      source: parseArtifactDisplay(artifact.title, artifact.source_hash).source,
       judgeScore: card.judge_score || 0.85,
     }))
   );
