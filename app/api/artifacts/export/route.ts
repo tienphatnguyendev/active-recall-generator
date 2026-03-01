@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
+import { apiError } from '@/lib/api-errors';
 
 export async function GET(request: NextRequest) {
   try {
@@ -7,17 +8,14 @@ export async function GET(request: NextRequest) {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
     if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return apiError('Unauthorized', 401);
     }
 
     const format = request.nextUrl.searchParams.get('format') ?? 'json';
     const allowed = ['json', 'csv', 'pdf', 'anki'];
 
     if (!allowed.includes(format)) {
-      return NextResponse.json(
-        { error: `Unsupported format "${format}". Allowed: ${allowed.join(', ')}.` },
-        { status: 400 }
-      );
+      return apiError(`Unsupported format "${format}". Allowed: ${allowed.join(', ')}.`, 400);
     }
 
     // Fetch real artifacts for the authenticated user
@@ -28,7 +26,7 @@ export async function GET(request: NextRequest) {
 
     if (fetchError) {
       console.error('Error fetching artifacts for export:', fetchError);
-      return NextResponse.json({ error: 'Failed to fetch artifacts' }, { status: 500 });
+      return apiError('Failed to fetch artifacts', 500);
     }
 
     if (format === 'json') {
@@ -72,6 +70,6 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('Artifacts bulk export error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return apiError('Internal server error', 500);
   }
 }

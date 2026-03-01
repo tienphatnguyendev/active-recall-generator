@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
+import { apiError } from '@/lib/api-errors';
 
 export async function GET(
   request: NextRequest,
@@ -10,7 +11,7 @@ export async function GET(
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
     if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return apiError('Unauthorized', 401);
     }
 
     const { id } = await params;
@@ -18,10 +19,7 @@ export async function GET(
     const allowed = ['json', 'csv', 'pdf', 'anki'];
 
     if (!allowed.includes(format)) {
-      return NextResponse.json(
-        { error: `Unsupported format "${format}". Allowed: ${allowed.join(', ')}.` },
-        { status: 400 }
-      );
+      return apiError(`Unsupported format "${format}". Allowed: ${allowed.join(', ')}.`, 400);
     }
 
     // Fetch artifact by ID — RLS ensures user can only access their own
@@ -32,7 +30,7 @@ export async function GET(
       .single();
 
     if (fetchError || !artifact) {
-      return NextResponse.json({ error: 'Artifact not found' }, { status: 404 });
+      return apiError('Artifact not found', 404);
     }
 
     if (format === 'json') {
@@ -72,6 +70,6 @@ export async function GET(
     });
   } catch (error) {
     console.error('Artifact export error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return apiError('Internal server error', 500);
   }
 }
