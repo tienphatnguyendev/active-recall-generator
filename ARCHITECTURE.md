@@ -532,3 +532,12 @@ import { StatsOverview, StreakWidget, ... } from "@/components/analytics/*";
 | Study | `app/study/page.tsx` | ✅ Fixed |
 | Analytics | `app/analytics/page.tsx` | ✅ Fixed |
 
+
+## API Contracts & Security
+
+### Server-Sent Events (SSE) Authentication
+**Contract:** All SSE endpoints (e.g., `/api/generate`) strictly require authentication via the `Authorization: Bearer <token>` HTTP header. 
+
+**Implementation Details:**
+- **Backend (FastAPI):** Enforces `HTTPBearer` security. It explicitly rejects token extraction from URL query parameters (`?token=...`) to prevent credential leakage in server access logs and browser history.
+- **Frontend (Next.js):** The native `EventSource` API is prohibited for authenticated endpoints because it only supports GET requests and cannot attach custom headers. Instead, clients must use fetch-based SSE streaming (e.g., `@microsoft/fetch-event-source`) to transmit the `Authorization` header securely over POST or GET requests.
