@@ -19,3 +19,7 @@ export async function deleteArtifact(id: string) {
   revalidatePath("/artifacts");
   revalidatePath("/study");
 }
+
+export async function revalidateArtifacts() {
+  revalidatePath("/artifacts");
+}
