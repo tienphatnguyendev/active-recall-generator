@@ -102,6 +102,57 @@ async function apiFetch<T>(
   return res.json() as Promise<T>;
 }
 
+async function apiFetchBlob(
+  url: string,
+  options: RequestInit = {},
+  retry = true
+): Promise<Blob> {
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL || '';
+  
+  // Construct the target URL
+  const targetUrl = url.startsWith('http') 
+    ? url 
+    : `${baseUrl.replace(/\/$/, '')}/${url.replace(/^\//, '')}`;
+
+  const headers: Record<string, string> = {
+    ...(options.headers as Record<string, string>),
+  };
+
+  if (_accessToken) {
+    headers["Authorization"] = `Bearer ${_accessToken}`;
+  }
+
+  const res = await fetch(targetUrl, { ...options, headers });
+
+  if (res.status === 401 && retry && _refreshFn) {
+    // Attempt token refresh once
+    const newToken = await _refreshFn();
+    if (newToken) {
+      _accessToken = newToken;
+      return apiFetchBlob(url, options, false);
+    }
+  }
+
+  if (res.status === 429) {
+    const err = new ApiError(429, "Too many requests. Please slow down.");
+    throw err;
+  }
+
+  if (!res.ok) {
+    let data: unknown;
+    try {
+      data = await res.json();
+    } catch {
+      data = null;
+    }
+    const message =
+      (data as { message?: string })?.message ?? res.statusText;
+    throw new ApiError(res.status, message, data);
+  }
+
+  return res.blob();
+}
+
 export const api = {
   get: <T>(url: string, options?: RequestInit) =>
     apiFetch<T>(url, { ...options, method: "GET" }),
@@ -122,4 +173,7 @@ export const api = {
 
   delete: <T>(url: string, options?: RequestInit) =>
     apiFetch<T>(url, { ...options, method: "DELETE" }),
+
+  blob: (url: string, options?: RequestInit) =>
+    apiFetchBlob(url, { ...options, method: "GET" }),
 };

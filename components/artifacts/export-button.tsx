@@ -33,15 +33,7 @@ export function ExportButton({ artifactId, className }: ExportButtonProps) {
         ? `/api/artifacts/${artifactId}/export?format=${format}`
         : `/api/artifacts/export?format=${format}`;
 
-      const res = await fetch(endpoint, {
-        headers: { Accept: "*/*" },
-      });
-
-      if (!res.ok) {
-        throw new ApiError(res.status, "Export failed.");
-      }
-
-      const blob = await res.blob();
+      const blob = await api.blob(endpoint);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
