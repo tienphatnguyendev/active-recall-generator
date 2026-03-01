@@ -2,8 +2,9 @@ services:
   - type: web
     name: active-recall-backend
     env: python
-    buildCommand: "uv venv --clear && uv pip install -e ."
-    startCommand: "uv run uvicorn note_taker.api.main:app --host 0.0.0.0 --port $PORT"
+    buildCommand: "uv sync"
+    startCommand: ".venv/bin/uvicorn note_taker.api.main:app --host 0.0.0.0 --port $PORT"
+    healthCheckPath: /health
     envVars:
       - key: SUPABASE_URL
         sync: false
