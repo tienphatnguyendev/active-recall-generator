@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ApiError } from "@/lib/api-client";
+import { api, ApiError } from "@/lib/api-client";
 
 type AnalyticsExportFormat = "json" | "csv";
 
@@ -14,10 +14,7 @@ export function AnalyticsExportButton() {
     setError(null);
 
     try {
-      const res = await fetch(`/api/artifacts/export?format=${format}`);
-      if (!res.ok) throw new ApiError(res.status, "Export failed.");
-
-      const blob = await res.blob();
+      const blob = await api.blob(`/api/artifacts/export?format=${format}`);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -26,8 +23,8 @@ export function AnalyticsExportButton() {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-    } catch {
-      setError("Export failed.");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Export failed.");
     } finally {
       setLoading(null);
     }
