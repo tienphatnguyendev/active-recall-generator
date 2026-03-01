@@ -1,7 +1,11 @@
 "use server";
 
 import { createClient } from "@/utils/supabase/server";
-import { logStudySessionSchema } from "@/lib/validations/study";
+import {
+  logStudySessionSchema,
+  logBulkStudySessionSchema,
+  type StudyResultInput,
+} from "@/lib/validations/study";
 
 // Simple single-card study log (existing interface, kept for backward compat)
 export async function logStudySession(
@@ -41,32 +45,21 @@ export async function logStudySession(
   }
 }
 
-// Typed result interface for bulk study sessions
-interface StudyResult {
-  cardId: string;
-  rating: number;
-  duration_ms?: number;
-  state_before?: number;
-  state_after?: number;
-  fsrs?: {
-    state?: number;
-    due?: string;
-    stability?: number;
-    difficulty?: number;
-    elapsed_days?: number;
-    scheduled_days?: number;
-    reps?: number;
-    lapses?: number;
-  };
-}
-
 // Bulk study session logger with FSRS support
 export async function logBulkStudySession(
   artifactId: string,
   mode: string,
   duration: number,
-  results: StudyResult[]
+  results: StudyResultInput[]
 ) {
+  // Validate input
+  const validated = logBulkStudySessionSchema.parse({
+    artifactId,
+    mode,
+    duration,
+    results,
+  });
+
   const supabase = await createClient();
 
   const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -75,20 +68,12 @@ export async function logBulkStudySession(
     throw new Error("Unauthorized: You must be logged in to log study sessions");
   }
 
-  if (!artifactId || !mode) {
-    throw new Error("Artifact ID and mode are required");
-  }
-
-  if (!results || results.length === 0) {
-    throw new Error("At least one study result is required");
-  }
-
   // Bulk insert study session records
-  const sessionRecords = results.map((r) => ({
+  const sessionRecords = validated.results.map((r) => ({
     user_id: user.id,
     card_id: r.cardId,
-    rating: r.rating || 3,
-    duration_ms: r.duration_ms || duration || 0,
+    rating: r.rating,
+    duration_ms: r.duration_ms || validated.duration || 0,
     state_before: r.state_before || 0,
     state_after: r.state_after || 0,
     reviewed_at: new Date().toISOString(),
@@ -104,7 +89,7 @@ export async function logBulkStudySession(
   }
 
   // Update FSRS state on cards (only for results that have FSRS data)
-  for (const r of results) {
+  for (const r of validated.results) {
     if (r.cardId && r.fsrs) {
       const { error: updateError } = await supabase
         .from("cards")
@@ -129,10 +114,10 @@ export async function logBulkStudySession(
   }
 
   return {
-    artifactId,
-    mode,
-    duration,
-    resultsProcessed: results.length,
+    artifactId: validated.artifactId,
+    mode: validated.mode,
+    duration: validated.duration,
+    resultsProcessed: validated.results.length,
     completedAt: new Date().toISOString(),
   };
 }
