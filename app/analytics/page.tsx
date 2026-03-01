@@ -23,12 +23,10 @@ export default async function AnalyticsPage() {
     );
   }
 
-  const userId = userData.user.id;
-
   const [streakRes, weeklyRes, masteryRes] = await Promise.all([
-    supabase.rpc('get_user_streak', { p_user_id: userId }),
-    supabase.rpc('get_weekly_activity', { p_user_id: userId }),
-    supabase.rpc('get_mastery_distribution', { p_user_id: userId }),
+    supabase.rpc('get_user_streak'),
+    supabase.rpc('get_weekly_activity'),
+    supabase.rpc('get_mastery_distribution'),
   ]);
 
   if (streakRes.error) console.error('Error fetching streak:', streakRes.error);
