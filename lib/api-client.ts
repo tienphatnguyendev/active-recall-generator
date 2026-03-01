@@ -47,6 +47,13 @@ async function apiFetch<T>(
   options: RequestInit = {},
   retry = true
 ): Promise<T> {
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL || '';
+  
+  // Construct the target URL
+  const targetUrl = url.startsWith('http') 
+    ? url 
+    : `${baseUrl.replace(/\/$/, '')}/${url.replace(/^\//, '')}`;
+
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(options.headers as Record<string, string>),
@@ -61,7 +68,7 @@ async function apiFetch<T>(
     delete headers["Content-Type"];
   }
 
-  const res = await fetch(url, { ...options, headers });
+  const res = await fetch(targetUrl, { ...options, headers });
 
   if (res.status === 401 && retry && _refreshFn) {
     // Attempt token refresh once
