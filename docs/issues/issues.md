@@ -21,7 +21,7 @@ The application has a well-structured Supabase schema with proper RLS policies, 
 
 ## 🔴 Critical Issues
 
-### C4. No Server-Side Input Validation in Auth Actions
+### C4. No Server-Side Input Validation in Auth Actions ([SOLO-109](https://linear.app/aaron-solo/issue/SOLO-109))
 
 **File**: [auth.ts](file:///Users/aaronng/repos/note-taker/app/actions/auth.ts)
 
@@ -58,7 +58,7 @@ export async function register(formData: FormData) {
 
 ---
 
-### C5. Export API Routes Are Stub-Only — No Auth Verification
+### C5. Export API Routes Are Stub-Only — No Auth Verification ([SOLO-108](https://linear.app/aaron-solo/issue/SOLO-108))
 
 **Files**: [export/route.ts](file:///Users/aaronng/repos/note-taker/app/api/artifacts/export/route.ts), [[id]/export/route.ts](file:///Users/aaronng/repos/note-taker/app/api/artifacts/%5Bid%5D/export/route.ts)
 
@@ -77,7 +77,7 @@ Anyone with a random string as a Bearer token gets a 200 OK. The per-artifact ex
 
 ## 🟠 Important Issues
 
-### I1. Duplicate Supabase Server Client Modules
+### I1. Duplicate Supabase Server Client Modules ([SOLO-110](https://linear.app/aaron-solo/issue/SOLO-110))
 
 **Files**: [utils/supabase/server.ts](file:///Users/aaronng/repos/note-taker/utils/supabase/server.ts) and [lib/supabase/server.ts](file:///Users/aaronng/repos/note-taker/lib/supabase/server.ts)
 
@@ -92,7 +92,7 @@ These two files are **nearly identical**, both exporting an `async function crea
 
 ---
 
-### I2. N+1 Card Update Pattern in Study Session POST
+### I2. N+1 Card Update Pattern in Study Session POST ([SOLO-113](https://linear.app/aaron-solo/issue/SOLO-113))
 
 **File**: [study/route.ts](file:///Users/aaronng/repos/note-taker/app/api/study/route.ts#L128-L145)
 
@@ -114,7 +114,7 @@ For a study session reviewing 20+ cards, this generates 20+ individual UPDATE qu
 
 ---
 
-### I3. Inconsistent Data Path — Dual Server Action + API Route for Study Sessions
+### I3. Inconsistent Data Path — Dual Server Action + API Route for Study Sessions ([SOLO-115](https://linear.app/aaron-solo/issue/SOLO-115))
 
 **Files**: [actions/study.ts](file:///Users/aaronng/repos/note-taker/app/actions/study.ts) and [api/study/route.ts](file:///Users/aaronng/repos/note-taker/app/api/study/route.ts)
 
@@ -124,7 +124,7 @@ Both a Server Action (`logStudySession`) and an API route (`POST /api/study`) ha
 
 ---
 
-### I4. Generate Page Is Client-Side Simulation Only
+### I4. Generate Page Is Client-Side Simulation Only ([SOLO-116](https://linear.app/aaron-solo/issue/SOLO-116))
 
 **File**: [page.tsx](file:///Users/aaronng/repos/note-taker/app/page.tsx)
 
@@ -142,7 +142,7 @@ The UI text also references "SQLite" storage ("Artifacts are stored in SQLite wi
 
 ---
 
-### I5. Missing Database Indexes
+### I5. Missing Database Indexes ([SOLO-112](https://linear.app/aaron-solo/issue/SOLO-112))
 
 **File**: [init_schema.sql](file:///Users/aaronng/repos/note-taker/supabase/migrations/20260227152105_init_schema.sql)
 
@@ -167,7 +167,7 @@ CREATE INDEX idx_study_sessions_reviewed_at ON public.study_sessions((reviewed_a
 
 ---
 
-### I6. `any` Type Usage Across Frontend
+### I6. `any` Type Usage Across Frontend ([SOLO-117](https://linear.app/aaron-solo/issue/SOLO-117))
 
 Multiple files use `any` type assertions, weakening TypeScript safety:
 
@@ -182,7 +182,7 @@ Multiple files use `any` type assertions, weakening TypeScript safety:
 
 ---
 
-### I7. Mock Analytics Data Still Shipped in Production Bundle
+### I7. Mock Analytics Data Still Shipped in Production Bundle ([SOLO-118](https://linear.app/aaron-solo/issue/SOLO-118))
 
 **File**: [mock-analytics-data.ts](file:///Users/aaronng/repos/note-taker/lib/mock-analytics-data.ts) (450 lines, 12KB)
 
@@ -192,7 +192,7 @@ This file exports `MOCK_ANALYTICS_DATA` with hardcoded fake data. While it's no 
 
 ---
 
-### I8. Middleware Auth Gap — `/forgot-password` and `/reset-password` Not Fully Protected
+### I8. Middleware Auth Gap — `/forgot-password` and `/reset-password` Not Fully Protected ([SOLO-111](https://linear.app/aaron-solo/issue/SOLO-111))
 
 **File**: [middleware.ts](file:///Users/aaronng/repos/note-taker/utils/supabase/middleware.ts#L38-L48)
 
@@ -223,19 +223,19 @@ const isPublicRoute = publicRoutes.some(r => request.nextUrl.pathname.startsWith
 
 ## 🟡 Minor Issues
 
-### M2. updated_at Column Never Auto-Updated
+### M2. updated_at Column Never Auto-Updated ([SOLO-123](https://linear.app/aaron-solo/issue/SOLO-123))
 
 **File**: [init_schema.sql](file:///Users/aaronng/repos/note-taker/supabase/migrations/20260227152105_init_schema.sql#L15)
 
 The `artifacts.updated_at` and `cards.updated_at` columns have a `DEFAULT` but no trigger to auto-update on row modification. Without a trigger, `updated_at` will remain at the creation time forever.
 
-### M3. `AuthContext` Is Static — No Real-Time Session Sync
+### M3. `AuthContext` Is Static — No Real-Time Session Sync ([SOLO-124](https://linear.app/aaron-solo/issue/SOLO-124))
 
 **File**: [auth-context.tsx](file:///Users/aaronng/repos/note-taker/components/auth/auth-context.tsx)
 
 The `AuthProvider` receives the user from the server layout render but never subscribes to `onAuthStateChange`. If a session expires mid-use, the UI will show the user as authenticated until a full page reload.
 
-### M4. API Client Module (`lib/api-client.ts`) Uses Module-Level Mutable State
+### M4. API Client Module (`lib/api-client.ts`) Uses Module-Level Mutable State ([SOLO-125](https://linear.app/aaron-solo/issue/SOLO-125))
 
 **File**: [api-client.ts](file:///Users/aaronng/repos/note-taker/lib/api-client.ts)
 
@@ -246,19 +246,21 @@ let _refreshFn: RefreshFn | null = null;
 
 Module-level mutable state is shared across all users in server-side rendering, which could cause token leakage between requests. This module should only be used client-side.
 
-### M5. FastAPI Backend Is a Skeleton — Only `/health` Route
+### ~~M5. FastAPI Backend Is a Skeleton — Only `/health` Route ([SOLO-126](https://linear.app/aaron-solo/issue/SOLO-126))~~ ✅ Resolved by [SOLO-102](https://linear.app/aaron-solo/issue/SOLO-102)
 
 **Files**: [api/main.py](file:///Users/aaronng/repos/note-taker/src/note_taker/api/main.py), [api/routes.py](file:///Users/aaronng/repos/note-taker/src/note_taker/api/routes.py)
 
 The backend has CORS configured and is deployed to Render, but only serves a `/health` endpoint. The frontend never calls it. This is expected WIP but should be tracked.
+*Now exposed via LangGraph SSE pipeline.*
 
-### M6. Python `DatabaseManager` Uses Local SQLite — Disconnected from Supabase
+### ~~M6. Python `DatabaseManager` Uses Local SQLite — Disconnected from Supabase ([SOLO-127](https://linear.app/aaron-solo/issue/SOLO-127))~~ ✅ Resolved by [SOLO-103](https://linear.app/aaron-solo/issue/SOLO-103)
 
 **File**: [database.py](file:///Users/aaronng/repos/note-taker/src/note_taker/database.py)
 
 The CLI/pipeline backend still uses a local SQLite file (`.note-taker.db`), completely separate from the Supabase Postgres database that the frontend uses. Generated artifacts from the CLI never appear in the web UI.
+*Backend is now securely saving directly to Supabase via service role.*
 
-### M7. CORS Hardcoded Origins
+### M7. CORS Hardcoded Origins ([SOLO-128](https://linear.app/aaron-solo/issue/SOLO-128))
 
 **File**: [api/main.py](file:///Users/aaronng/repos/note-taker/src/note_taker/api/main.py#L12-L15)
 
@@ -275,7 +277,7 @@ Should be loaded from environment variables for deploy flexibility.
 
 ## 🔵 New Issues (2026-03-01 Code Review)
 
-### N1. `get_mastery_distribution` RPC Returns Unordered `jsonb_agg`
+### N1. `get_mastery_distribution` RPC Returns Unordered `jsonb_agg` ([SOLO-114](https://linear.app/aaron-solo/issue/SOLO-114))
 
 **Severity**: Medium  
 **Location**: [20260301000000_fix_rpc_security.sql](file:///Users/aaronng/repos/note-taker/supabase/migrations/20260301000000_fix_rpc_security.sql#L138-L141)
@@ -292,7 +294,7 @@ SELECT jsonb_agg(
 
 ---
 
-### N2. Residual `any` Type in Fixed Analytics Page
+### N2. Residual `any` Type in Fixed Analytics Page ([SOLO-120](https://linear.app/aaron-solo/issue/SOLO-120))
 
 **Severity**: Low  
 **Location**: [analytics/page.tsx#L45](file:///Users/aaronng/repos/note-taker/app/analytics/page.tsx#L45)
@@ -307,7 +309,7 @@ The C3 fix correctly converted the page to a Server Component, but left one `any
 
 ---
 
-### N3. Dead-Code Null Check in Analytics Page
+### N3. Dead-Code Null Check in Analytics Page ([SOLO-121](https://linear.app/aaron-solo/issue/SOLO-121))
 
 **Severity**: Low  
 **Location**: [analytics/page.tsx#L97-L106](file:///Users/aaronng/repos/note-taker/app/analytics/page.tsx#L97-L106)
@@ -326,7 +328,7 @@ The C3 fix correctly converted the page to a Server Component, but left one `any
 
 ---
 
-### N4. `study.ts` Server Action Imports from Duplicate Client Module
+### N4. `study.ts` Server Action Imports from Duplicate Client Module ([SOLO-119](https://linear.app/aaron-solo/issue/SOLO-119))
 
 **Severity**: Medium  
 **Location**: [actions/study.ts#L3](file:///Users/aaronng/repos/note-taker/app/actions/study.ts#L3)
@@ -341,7 +343,7 @@ While the C1 fix consolidated API routes to use `@/utils/supabase/server`, the `
 
 ---
 
-### N5. `AnalyticsExportButton` Imported in Both Page and Client Component
+### N5. `AnalyticsExportButton` Imported in Both Page and Client Component ([SOLO-122](https://linear.app/aaron-solo/issue/SOLO-122))
 
 **Severity**: Low  
 **Location**: [analytics/page.tsx#L4](file:///Users/aaronng/repos/note-taker/app/analytics/page.tsx#L4) and [analytics-client.tsx#L9](file:///Users/aaronng/repos/note-taker/app/analytics/analytics-client.tsx#L9)
@@ -356,21 +358,21 @@ While the C1 fix consolidated API routes to use `@/utils/supabase/server`, the `
 
 | Priority | Issue | Effort | Impact |
 |----------|-------|--------|--------|
-| 🔴 P0 | C5: Export routes never verify token | Low | Auth bypass |
-| 🔴 P1 | C4: No server-side input validation | Medium | Injection/abuse risk |
-| 🟠 P2 | I1: Duplicate server client modules | Low | DX confusion, import inconsistency |
-| 🟠 P2 | I8: Middleware auth route gap | Low | Forgot-password redirect bug |
-| 🟠 P2 | I5: Missing database indexes | Low | Performance at scale |
-| 🟠 P2 | I2: N+1 card updates | Medium | Performance bottleneck |
-| 🟠 P2 | N1: Unordered RPC `jsonb_agg` | Low | Inconsistent chart rendering |
-| 🟠 P3 | I3: Dual study session paths | Medium | Maintenance burden |
-| 🟠 P3 | I4: Generate page simulation | High | Feature gap |
-| 🟠 P3 | I6: `any` types | Medium | Type safety |
-| 🟠 P3 | I7: Mock data in production | Low | Bundle hygiene |
-| 🟠 P3 | N4: Study action uses duplicate client | Low | Import inconsistency |
-| 🟡 P4 | N2: Residual `any` in analytics page | Low | Type safety |
-| 🟡 P4 | N3: Dead-code null check | Low | Code clarity |
-| 🟡 P4 | N5: Dead import in analytics client | Low | Bundle hygiene |
+| 🔴 P0 | C5: Export routes never verify token ([SOLO-108](https://linear.app/aaron-solo/issue/SOLO-108)) | Low | Auth bypass |
+| 🔴 P1 | C4: No server-side input validation ([SOLO-109](https://linear.app/aaron-solo/issue/SOLO-109)) | Medium | Injection/abuse risk |
+| 🟠 P2 | I1: Duplicate server client modules ([SOLO-110](https://linear.app/aaron-solo/issue/SOLO-110)) | Low | DX confusion, import inconsistency |
+| 🟠 P2 | I8: Middleware auth route gap ([SOLO-111](https://linear.app/aaron-solo/issue/SOLO-111)) | Low | Forgot-password redirect bug |
+| 🟠 P2 | I5: Missing database indexes ([SOLO-112](https://linear.app/aaron-solo/issue/SOLO-112)) | Low | Performance at scale |
+| 🟠 P2 | I2: N+1 card updates ([SOLO-113](https://linear.app/aaron-solo/issue/SOLO-113)) | Medium | Performance bottleneck |
+| 🟠 P2 | N1: Unordered RPC `jsonb_agg` ([SOLO-114](https://linear.app/aaron-solo/issue/SOLO-114)) | Low | Inconsistent chart rendering |
+| 🟠 P3 | I3: Dual study session paths ([SOLO-115](https://linear.app/aaron-solo/issue/SOLO-115)) | Medium | Maintenance burden |
+| 🟠 P3 | I4: Generate page simulation ([SOLO-116](https://linear.app/aaron-solo/issue/SOLO-116)) | High | Feature gap |
+| 🟠 P3 | I6: `any` types ([SOLO-117](https://linear.app/aaron-solo/issue/SOLO-117)) | Medium | Type safety |
+| 🟠 P3 | I7: Mock data in production ([SOLO-118](https://linear.app/aaron-solo/issue/SOLO-118)) | Low | Bundle hygiene |
+| 🟠 P3 | N4: Study action uses duplicate client ([SOLO-119](https://linear.app/aaron-solo/issue/SOLO-119)) | Low | Import inconsistency |
+| 🟡 P4 | N2: Residual `any` in analytics page ([SOLO-120](https://linear.app/aaron-solo/issue/SOLO-120)) | Low | Type safety |
+| 🟡 P4 | N3: Dead-code null check ([SOLO-121](https://linear.app/aaron-solo/issue/SOLO-121)) | Low | Code clarity |
+| 🟡 P4 | N5: Dead import in analytics client ([SOLO-122](https://linear.app/aaron-solo/issue/SOLO-122)) | Low | Bundle hygiene |
 | 🟡 P4 | M2-M7 | Low each | Polish and hardening |
 
 ---
