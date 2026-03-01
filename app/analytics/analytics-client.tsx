@@ -6,7 +6,6 @@ import { WeeklyActivityChart } from '@/components/analytics/weekly-activity-char
 import { MasteryDistributionChart } from '@/components/analytics/mastery-distribution-chart';
 import { PerformanceByTopic } from '@/components/analytics/performance-by-topic';
 import { ArtifactProgressDetail } from '@/components/analytics/artifact-progress-detail';
-import { AnalyticsExportButton } from '@/components/analytics/analytics-export-button';
 import type { MasteryLevel } from '@/components/study/mastery-badge';
 
 export interface AnalyticsData {
