@@ -42,7 +42,7 @@ export default async function AnalyticsPage() {
       },
       {
         label: 'Cards mastered',
-        value: masteryRes.data?.data?.find((d: any) => d.level === 'mastered')?.count || 0,
+        value: masteryRes.data?.data?.find((d: { level: string; count: number }) => d.level === 'mastered')?.count || 0,
         trend: 'neutral',
       },
       {
@@ -94,16 +94,7 @@ export default async function AnalyticsPage() {
           </div>
         )}
 
-        {analyticsData ? (
-          <AnalyticsClient data={analyticsData} />
-        ) : (
-          <div className="text-center py-12">
-            <p className="text-muted-foreground">No analytics data available yet.</p>
-            <p className="text-sm text-muted-foreground mt-2">
-              Start creating artifacts and studying to see your progress.
-            </p>
-          </div>
-        )}
+        <AnalyticsClient data={analyticsData} />
       </main>
     </div>
   );
