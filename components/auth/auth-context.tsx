@@ -3,6 +3,8 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import type { User } from "@supabase/supabase-js";
 import { createBrowserClient } from "@supabase/ssr";
+import { setAccessToken } from "@/lib/api-client";
+
 
 interface AuthState {
   user: User | null;
@@ -41,6 +43,8 @@ export function AuthProvider({
         }
         return prevUser;
       });
+      
+      setAccessToken(session?.access_token ?? null);
     });
 
     return () => subscription.unsubscribe();
