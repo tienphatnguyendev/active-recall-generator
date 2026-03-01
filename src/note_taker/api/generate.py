@@ -1,13 +1,17 @@
-"""SSE streaming endpoint for the LangGraph pipeline."""
+"""SSE streaming endpoint for the LangGraph pipeline (secured)."""
 import json
 import hashlib
 import logging
 from typing import AsyncGenerator
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from sse_starlette.sse import EventSourceResponse
+from tenacity import RetryError
 
 from note_taker.api.schemas import GenerateRequest, SSEStageEvent, SSEErrorEvent
+from note_taker.api.auth import get_current_user, AuthenticatedUser
+from note_taker.api.persistence import save_artifact_to_supabase
+from note_taker.api.supabase_client import get_supabase_client
 from note_taker.pipeline.graph import build_graph
 
 logger = logging.getLogger(__name__)
@@ -55,7 +59,10 @@ def _artifact_to_dict(artifact) -> dict:
     return json.loads(artifact.model_dump_json())
 
 
-async def _generate_events(request: GenerateRequest) -> AsyncGenerator[dict, None]:
+async def _generate_events(
+    request: GenerateRequest,
+    user: AuthenticatedUser,
+) -> AsyncGenerator[dict, None]:
     """Run the pipeline and yield SSE events for each node completion."""
     chunk_id = hashlib.sha256(
         f"{request.title}:{request.markdown[:200]}".encode()
@@ -70,6 +77,7 @@ async def _generate_events(request: GenerateRequest) -> AsyncGenerator[dict, Non
         "outline": None,
         "skip_processing": False,
         "revision_count": 0,
+        "persist_locally": False,  # API route persists to Supabase instead
     }
 
     try:
@@ -99,13 +107,8 @@ async def _generate_events(request: GenerateRequest) -> AsyncGenerator[dict, Non
                         ).model_dump_json(),
                     }
 
-                    # Emit complete with cached artifact
-                    if last_artifact:
-                        yield {
-                            "event": "complete",
-                            "data": json.dumps({"artifact": _artifact_to_dict(last_artifact)}),
-                        }
-                    return
+                    # Fallthrough to completion if we have an artifact
+                    break
 
                 # Normal stage completion
                 summary = _serialize_node_output(node_name, output)
@@ -117,12 +120,41 @@ async def _generate_events(request: GenerateRequest) -> AsyncGenerator[dict, Non
                         data=summary,
                     ).model_dump_json(),
                 }
-
-        # Emit final completion
+        
+        # After pipeline, save to Supabase
         if last_artifact:
             yield {
+                "event": "stage_update",
+                "data": SSEStageEvent(
+                    stage="saving_to_supabase",
+                    status="started",
+                    data=None,
+                ).model_dump_json(),
+            }
+
+            supabase = get_supabase_client()
+            artifact_id = save_artifact_to_supabase(
+                client=supabase,
+                user_id=user.id,
+                title=request.title,
+                artifact=last_artifact,
+            )
+
+            yield {
+                "event": "stage_update",
+                "data": SSEStageEvent(
+                    stage="saving_to_supabase",
+                    status="completed",
+                    data={"artifact_id": artifact_id},
+                ).model_dump_json(),
+            }
+
+            yield {
                 "event": "complete",
-                "data": json.dumps({"artifact": _artifact_to_dict(last_artifact)}),
+                "data": json.dumps({
+                    "artifact": _artifact_to_dict(last_artifact),
+                    "artifact_id": artifact_id,
+                }),
             }
         else:
             yield {
@@ -130,6 +162,14 @@ async def _generate_events(request: GenerateRequest) -> AsyncGenerator[dict, Non
                 "data": SSEErrorEvent(message="Pipeline completed without producing an artifact.").model_dump_json(),
             }
 
+    except RetryError as e:
+        logger.exception("Pipeline rate limited after retries")
+        yield {
+            "event": "error",
+            "data": SSEErrorEvent(
+                message="Rate limited by LLM provider. Please try again in a minute."
+            ).model_dump_json(),
+        }
     except Exception as e:
         logger.exception("Pipeline error")
         yield {
@@ -139,6 +179,9 @@ async def _generate_events(request: GenerateRequest) -> AsyncGenerator[dict, Non
 
 
 @router.post("/api/generate")
-async def generate(request: GenerateRequest):
-    """Stream pipeline progress as Server-Sent Events."""
-    return EventSourceResponse(_generate_events(request))
+async def generate(
+    request: GenerateRequest,
+    user: AuthenticatedUser = Depends(get_current_user),
+):
+    """Stream pipeline progress as Server-Sent Events (authenticated)."""
+    return EventSourceResponse(_generate_events(request, user))

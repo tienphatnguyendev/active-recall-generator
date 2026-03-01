@@ -139,3 +139,23 @@ def test_save_to_db_node(base_state, tmp_path):
     retrieved = db.get_artifact(base_state["chunk_id"])
     assert retrieved is not None
     assert retrieved.qa_pairs[0].question == "Q"
+def test_save_to_db_node_skips_if_flag_is_false(base_state, tmp_path):
+    """save_to_db_node should NOT persist the artifact if persist_locally is False."""
+    from note_taker.pipeline.nodes import save_to_db_node
+    from note_taker.database import DatabaseManager
+    from note_taker.models import FinalArtifactV1
+    
+    DatabaseManager._instance = None
+    db = DatabaseManager(db_path=str(tmp_path / "test_skip.db"))
+    db.ensure_database()
+
+    base_state["artifact"] = FinalArtifactV1(
+        source_hash="abc123",
+        outline=[OutlineItem(title="T", level=1)],
+        qa_pairs=[QuestionAnswerPair(question="Q", answer="A", source_context="C")],
+    )
+    base_state["persist_locally"] = False
+
+    save_to_db_node(base_state, db_manager=db)
+    retrieved = db.get_artifact(base_state["chunk_id"])
+    assert retrieved is None

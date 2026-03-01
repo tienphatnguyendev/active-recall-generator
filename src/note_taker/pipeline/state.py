@@ -17,3 +17,4 @@ class GraphState(TypedDict):
 
     # Set by judge/revise loop
     revision_count: int
+    persist_locally: bool

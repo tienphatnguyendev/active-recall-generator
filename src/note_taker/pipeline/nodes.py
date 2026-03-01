@@ -215,6 +215,9 @@ def revise_node(state: GraphState) -> dict:
 
 def save_to_db_node(state: GraphState, db_manager: DatabaseManager = None) -> dict:
     """Persist the final artifact to the SQLite database."""
+    if not state.get("persist_locally", True):
+        return {}
+        
     if db_manager is None:
         db_manager = DatabaseManager()
     
