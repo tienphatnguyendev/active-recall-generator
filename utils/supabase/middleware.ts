@@ -35,25 +35,20 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  const isAuthRoute = request.nextUrl.pathname.startsWith('/login') || 
-                      request.nextUrl.pathname.startsWith('/register') ||
-                      request.nextUrl.pathname.startsWith('/forgot-password') ||
-                      request.nextUrl.pathname.startsWith('/reset-password');
+  // Single source of truth for routes accessible without authentication
+  const publicRoutes = ['/login', '/register', '/forgot-password', '/reset-password'];
+  const isPublicRoute = request.nextUrl.pathname === '/' ||
+    publicRoutes.some(route => request.nextUrl.pathname.startsWith(route));
 
-  // Protect study/artifacts/analytics routes
-  if (
-    !user &&
-    !request.nextUrl.pathname.startsWith('/login') &&
-    !request.nextUrl.pathname.startsWith('/register') &&
-    request.nextUrl.pathname !== '/'
-  ) {
-    // no user, potentially respond by redirecting the user to the login page
+  // Redirect unauthenticated users to login (unless on a public route)
+  if (!user && !isPublicRoute) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
   }
 
-  // Redirect logged in users away from auth pages
+  // Redirect authenticated users away from auth pages (but not '/')
+  const isAuthRoute = publicRoutes.some(route => request.nextUrl.pathname.startsWith(route));
   if (user && isAuthRoute) {
     const url = request.nextUrl.clone()
     url.pathname = '/artifacts'
