@@ -6,6 +6,7 @@ from typing import AsyncGenerator
 
 from fastapi import APIRouter, Depends
 from sse_starlette.sse import EventSourceResponse
+from tenacity import RetryError
 
 from note_taker.api.schemas import GenerateRequest, SSEStageEvent, SSEErrorEvent
 from note_taker.api.auth import get_current_user, AuthenticatedUser
@@ -161,6 +162,14 @@ async def _generate_events(
                 "data": SSEErrorEvent(message="Pipeline completed without producing an artifact.").model_dump_json(),
             }
 
+    except RetryError as e:
+        logger.exception("Pipeline rate limited after retries")
+        yield {
+            "event": "error",
+            "data": SSEErrorEvent(
+                message="Rate limited by LLM provider. Please try again in a minute."
+            ).model_dump_json(),
+        }
     except Exception as e:
         logger.exception("Pipeline error")
         yield {
