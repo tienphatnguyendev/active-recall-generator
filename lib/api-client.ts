@@ -54,8 +54,6 @@ async function apiFetch<T>(
     ? url 
     : `${baseUrl.replace(/\/$/, '')}/${url.replace(/^\//, '')}`;
 
-  console.log(`[api-client] Fetching: ${targetUrl}`);
-
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(options.headers as Record<string, string>),
