@@ -29,8 +29,18 @@ export function AuthProvider({
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      // Ignore initial empty session if server provided user
+      if (event === "INITIAL_SESSION" && initialUser && !session) {
+        return;
+      }
+
+      setUser((prevUser) => {
+        if (prevUser?.id !== session?.user?.id) {
+          return session?.user ?? null;
+        }
+        return prevUser;
+      });
     });
 
     return () => subscription.unsubscribe();
