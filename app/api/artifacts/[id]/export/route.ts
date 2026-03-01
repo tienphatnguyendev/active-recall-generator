@@ -1,20 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@/utils/supabase/server';
 
-/**
- * GET /api/artifacts/[id]/export?format=json|csv|pdf|anki
- *
- * Per-artifact export endpoint.
- * Currently returns stub data — replace with real DB queries once the
- * database integration is wired up.
- */
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const token = request.headers.get('authorization')?.split('Bearer ')[1];
+    const supabase = await createClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
 
-    if (!token) {
+    if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -29,11 +24,19 @@ export async function GET(
       );
     }
 
-    // TODO: Fetch artifact by `id` from the database and check ownership
-    // before serialising. Return 404 if not found, 403 if not owned by the user.
+    // Fetch artifact by ID — RLS ensures user can only access their own
+    const { data: artifact, error: fetchError } = await supabase
+      .from('artifacts')
+      .select('id, source_name, section_title, created_at, cards(id, question, answer, judge_score)')
+      .eq('id', id)
+      .single();
+
+    if (fetchError || !artifact) {
+      return NextResponse.json({ error: 'Artifact not found' }, { status: 404 });
+    }
 
     if (format === 'json') {
-      const body = JSON.stringify({ id, qaPairs: [] }, null, 2);
+      const body = JSON.stringify({ id: artifact.id, source: artifact.source_name, section: artifact.section_title, qaPairs: artifact.cards || [] }, null, 2);
       return new NextResponse(body, {
         status: 200,
         headers: {
@@ -44,7 +47,11 @@ export async function GET(
     }
 
     if (format === 'csv') {
-      const csv = 'question,answer,judgeScore\n';
+      let csv = 'question,answer,judge_score\n';
+      for (const card of (artifact.cards || [])) {
+        const escape = (s: string) => `"${(s || '').replace(/"/g, '""')}"`;
+        csv += `${escape(card.question)},${escape(card.answer)},${card.judge_score ?? ''}\n`;
+      }
       return new NextResponse(csv, {
         status: 200,
         headers: {

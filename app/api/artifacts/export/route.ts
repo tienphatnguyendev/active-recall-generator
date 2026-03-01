@@ -1,20 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@/utils/supabase/server';
 
-/**
- * GET /api/artifacts/export?format=json|csv|pdf|anki
- *
- * Bulk export endpoint for all of the authenticated user's artifacts.
- * Currently returns stub data — replace with real DB queries once the
- * database integration is wired up.
- *
- * This route MUST be defined before the [id] dynamic segment so Next.js
- * matches /api/artifacts/export before /api/artifacts/[id].
- */
 export async function GET(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.split('Bearer ')[1];
+    const supabase = await createClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
 
-    if (!token) {
+    if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -28,12 +20,19 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // TODO: Fetch all user artifacts from the database and serialise them
-    // in the requested format. For now return an empty-but-valid payload so
-    // the export button receives a 200 and can trigger a download.
+    // Fetch real artifacts for the authenticated user
+    const { data: artifacts, error: fetchError } = await supabase
+      .from('artifacts')
+      .select('id, source_name, section_title, created_at, cards(id, question, answer, judge_score)')
+      .eq('user_id', user.id);
+
+    if (fetchError) {
+      console.error('Error fetching artifacts for export:', fetchError);
+      return NextResponse.json({ error: 'Failed to fetch artifacts' }, { status: 500 });
+    }
 
     if (format === 'json') {
-      const body = JSON.stringify({ artifacts: [] }, null, 2);
+      const body = JSON.stringify({ artifacts: artifacts || [] }, null, 2);
       return new NextResponse(body, {
         status: 200,
         headers: {
@@ -44,7 +43,14 @@ export async function GET(request: NextRequest) {
     }
 
     if (format === 'csv') {
-      const csv = 'id,source,section,question,answer,judgeScore\n';
+      let csv = 'artifact_id,source,section,question,answer,judge_score\n';
+      for (const artifact of (artifacts || [])) {
+        for (const card of (artifact.cards || [])) {
+          // Escape fields containing commas or quotes
+          const escape = (s: string) => `"${(s || '').replace(/"/g, '""')}"`;
+          csv += `${artifact.id},${escape(artifact.source_name)},${escape(artifact.section_title)},${escape(card.question)},${escape(card.answer)},${card.judge_score ?? ''}\n`;
+        }
+      }
       return new NextResponse(csv, {
         status: 200,
         headers: {
@@ -54,7 +60,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // pdf / anki — return empty placeholder bytes
+    // pdf / anki — return empty placeholder bytes (TODO: implement real export)
     return new NextResponse(new Uint8Array(), {
       status: 200,
       headers: {
