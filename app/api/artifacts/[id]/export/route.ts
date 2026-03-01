@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 import { apiError } from '@/lib/api-errors';
+import { parseArtifactDisplay } from '@/lib/artifact-utils';
 
 export async function GET(
   request: NextRequest,
@@ -34,8 +35,7 @@ export async function GET(
     }
 
     if (format === 'json') {
-      const source = artifact.source_hash ? artifact.source_hash.substring(0, 8) + '...' : 'Unknown Source';
-      const section = artifact.title || (artifact.source_hash ? `Document (${artifact.source_hash.substring(0, 8)})` : 'Document');
+      const { source, section } = parseArtifactDisplay(artifact.title, artifact.source_hash);
       const body = JSON.stringify({ id: artifact.id, source, section, qaPairs: artifact.cards || [] }, null, 2);
       return new NextResponse(body, {
         status: 200,

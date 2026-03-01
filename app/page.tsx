@@ -154,7 +154,7 @@ export default function GeneratePage() {
           rejectRef.current = reject;
           connect({
             markdown: chunks[i],
-            title: `${bookName}:${chapterName}`,
+            title: `${bookName} - ${chapterName}`,
             force_refresh: forceRefresh,
           });
         });

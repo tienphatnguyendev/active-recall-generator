@@ -1,6 +1,7 @@
 import { Nav } from "@/components/nav";
 import { createClient } from "@/utils/supabase/server";
 import { ArtifactsClient } from "./artifacts-client";
+import { parseArtifactDisplay } from "@/lib/artifact-utils";
 
 export default async function ArtifactsPage() {
   const supabase = await createClient();
@@ -12,12 +13,14 @@ export default async function ArtifactsPage() {
     .order("created_at", { ascending: false });
 
   // Map the Supabase snake_case data to the camelCase props expected by the Client Component
-  const artifacts = (rawArtifacts || []).map((artifact) => ({
-    id: artifact.id,
-    source: artifact.source_hash ? artifact.source_hash.substring(0, 8) + "..." : "Unknown Source",
-    book: artifact.title?.split(" - ")[0] || "Unknown Book",
-    chapter: artifact.title?.split(" - ")[1] || "Unknown Chapter",
-    section: artifact.title || (artifact.source_hash ? `Document (${artifact.source_hash.substring(0, 8)})` : "Document"),
+  const artifacts = (rawArtifacts || []).map((artifact) => {
+    const display = parseArtifactDisplay(artifact.title, artifact.source_hash);
+    return {
+      id: artifact.id,
+      source: display.source,
+      book: display.book,
+      chapter: display.chapter,
+      section: display.section,
     createdAt: artifact.created_at,
     outline: artifact.outline || [],
     qaPairs: (artifact.cards || []).map((card: { question: string; answer: string; source_context: string | null; judge_score: number | null; judge_feedback: string | null }) => ({
@@ -27,7 +30,8 @@ export default async function ArtifactsPage() {
       judgeScore: card.judge_score,
       judgeFeedback: card.judge_feedback,
     })),
-  }));
+  };
+});
 
   return (
     <div className="min-h-screen bg-background">

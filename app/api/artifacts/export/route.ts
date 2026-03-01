@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 import { apiError } from '@/lib/api-errors';
+import { parseArtifactDisplay } from '@/lib/artifact-utils';
 
 export async function GET(request: NextRequest) {
   try {
@@ -46,8 +47,7 @@ export async function GET(request: NextRequest) {
         for (const card of (artifact.cards || [])) {
           // Escape fields containing commas or quotes
           const escape = (s: string) => `"${(s || '').replace(/"/g, '""')}"`;
-          const source = artifact.source_hash ? artifact.source_hash.substring(0, 8) + '...' : 'Unknown Source';
-          const section = artifact.title || (artifact.source_hash ? `Document (${artifact.source_hash.substring(0, 8)})` : 'Document');
+          const { source, section } = parseArtifactDisplay(artifact.title, artifact.source_hash);
           csv += `${artifact.id},${escape(source)},${escape(section)},${escape(card.question)},${escape(card.answer)},${card.judge_score ?? ''}\n`;
         }
       }
