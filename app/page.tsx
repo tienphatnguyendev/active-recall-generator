@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { Nav } from "@/components/nav";
 import { PipelineStatus, DEFAULT_STAGES } from "@/components/pipeline-status";
+import { usePipelineSSE, PipelineEvent } from "@/hooks/use-pipeline-sse";
 
 const SAMPLE_MARKDOWN = `# The Water Cycle
 
@@ -18,13 +19,26 @@ As water vapor rises and cools, it condenses around tiny particles to form cloud
 
 Water returns to Earth's surface as rain, snow, sleet, or hail, depending on atmospheric temperature and pressure conditions.`;
 
+type StageStatus = "idle" | "active" | "done" | "failed";
+
 type Stage = {
   id: string;
   label: string;
   description: string;
   color: string;
-  status: "idle" | "active" | "done" | "failed";
+  status: StageStatus;
   detail?: string;
+};
+
+// Map backend stage names to UI stage IDs
+const STAGE_MAP: Record<string, string> = {
+  "check": "check",
+  "outline_draft": "draft",
+  "qa_draft": "draft",
+  "judge": "judge",
+  "revise": "revise",
+  "save": "save",
+  "saving_to_supabase": "save",
 };
 
 export default function GeneratePage() {
@@ -38,75 +52,123 @@ export default function GeneratePage() {
   const [currentChunk, setCurrentChunk] = useState(0);
   const [totalChunks, setTotalChunks] = useState(0);
   const [qaCount, setQaCount] = useState(0);
+  const [error, setError] = useState<string | null>(null);
 
-  const updateStage = (
+  // Refs to control the promise-based sequential flow
+  const resolveRef = useRef<(() => void) | null>(null);
+  const rejectRef = useRef<((reason?: any) => void) | null>(null);
+
+  const updateStage = useCallback((
     id: string,
-    status: Stage["status"],
+    status: StageStatus,
     detail?: string
   ) => {
     setStages((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, status, detail } : s))
+      prev.map((s) => (s.id === id ? { ...s, status, detail: detail ?? s.description } : s))
     );
-  };
+  }, []);
 
-  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  const { connect, disconnect } = usePipelineSSE({
+    onEvent: (event: PipelineEvent) => {
+      switch (event.type) {
+        case "stage":
+          const uiId = STAGE_MAP[event.stage] || event.stage;
+          let status: StageStatus = "active";
+          if (event.status === "completed" || event.status === "skipped") {
+            status = "done";
+          }
+          
+          let detail = "";
+          if (event.stage === "outline_draft" && event.data?.item_count) {
+            detail = `Generated ${event.data.item_count} outline items.`;
+          } else if (event.stage === "qa_draft" && event.data?.qa_count) {
+            detail = `Generated ${event.data.qa_count} Q&A pairs.`;
+          } else if (event.stage === "judge" && event.status === "completed") {
+            detail = event.data?.failing_count > 0 
+              ? `${event.data.failing_count} pairs failed threshold — revising.` 
+              : "All pairs passed (score ≥ 0.7).";
+          } else if (event.stage === "revise" && event.data?.revision_count) {
+            detail = `Revision cycle ${event.data.revision_count} complete.`;
+          } else if (event.status === "skipped") {
+            detail = "No existing record found — processing."; // Or relevant cache message
+          }
 
-  const runSimulation = async (chunks: number) => {
-    setTotalChunks(chunks);
+          updateStage(uiId, status, detail || undefined);
+
+          // Update QA count if provided in the event data
+          if (event.data?.qa_count !== undefined) {
+            setQaCount((prev) => {
+              // Only update if it's larger or if we want to trust the backend's absolute count per chunk
+              // Actually, backend sends count for the CURRENT chunk. We should probably add them up?
+              // But for sequential, let's just use what the backend says for the chunk and add to total.
+              return prev; // We'll handle summation in the loop if needed, or just set it.
+            });
+          }
+          break;
+
+        case "complete":
+          // For sequential chunks, we update the total QA count when a chunk is finished
+          if (event.artifact?.qa_pairs) {
+            setQaCount((prev) => prev + event.artifact.qa_pairs.length);
+          }
+          resolveRef.current?.();
+          break;
+
+        case "error":
+          setError(event.message);
+          // Mark the currently active stage as failed
+          setStages(prev => prev.map(s => s.status === "active" ? { ...s, status: "failed", detail: event.message } : s));
+          rejectRef.current?.(new Error(event.message));
+          break;
+      }
+    },
+    onClose: () => {
+      // Handled by resolve/reject
+    }
+  });
+
+  const handleSubmit = async () => {
+    if (!markdown.trim() || !bookName.trim() || !chapterName.trim()) return;
+    
+    // Split into chunks by headers
+    const chunks = markdown.split(/(?=^#{1,2} )/gm).filter(c => c.trim().length > 0);
+    const total = chunks.length;
+    
+    setTotalChunks(total);
     setCurrentChunk(0);
     setQaCount(0);
     setStages(DEFAULT_STAGES);
     setIsRunning(true);
     setIsDone(false);
+    setError(null);
 
-    for (let i = 1; i <= chunks; i++) {
-      setCurrentChunk(i);
+    try {
+      for (let i = 0; i < total; i++) {
+        setCurrentChunk(i + 1);
+        // Reset stages for new chunk (except for the very first one)
+        if (i > 0) setStages(DEFAULT_STAGES);
 
-      updateStage("check", "active", `Hashing chunk ${i}...`);
-      await sleep(600);
-      updateStage("check", "done", `No existing record found — processing.`);
-
-      updateStage("draft", "active", "Calling LLM for outline + Q&A draft...");
-      await sleep(1200);
-      updateStage("draft", "done", "Generated 3 Q&A pairs.");
-
-      updateStage("judge", "active", "Evaluating each Q&A pair...");
-      await sleep(1000);
-      const passAll = Math.random() > 0.4;
-      if (passAll) {
-        updateStage("judge", "done", "All pairs passed (score ≥ 0.7).");
-        updateStage("revise", "idle", "No revisions needed.");
-      } else {
-        updateStage("judge", "done", "1 pair below threshold — revising.");
-        updateStage("revise", "active", "Revising 1 failing Q&A pair...");
-        await sleep(900);
-        updateStage("revise", "done", "Revision cycle 1 complete.");
+        await new Promise<void>((resolve, reject) => {
+          resolveRef.current = resolve;
+          rejectRef.current = reject;
+          connect({
+            markdown: chunks[i],
+            title: `${bookName}:${chapterName}`,
+            force_refresh: forceRefresh,
+          });
+        });
       }
-
-      updateStage("save", "active", "Persisting artifact to SQLite...");
-      await sleep(500);
-      updateStage("save", "done", `Artifact saved for chunk ${i}.`);
-
-      setQaCount((prev) => prev + 3);
-
-      if (i < chunks) {
-        await sleep(400);
-        setStages(DEFAULT_STAGES);
-      }
+      setIsDone(true);
+    } catch (err) {
+      console.error("Pipeline execution failed:", err);
+    } finally {
+      setIsRunning(false);
+      disconnect();
     }
-
-    setIsRunning(false);
-    setIsDone(true);
-  };
-
-  const handleSubmit = () => {
-    if (!markdown.trim() || !bookName.trim() || !chapterName.trim()) return;
-    const headers = markdown.match(/^#{1,2} .+/gm) ?? [];
-    const chunks = Math.max(1, headers.length);
-    runSimulation(chunks);
   };
 
   const handleReset = () => {
+    disconnect();
     setMarkdown("");
     setBookName("");
     setChapterName("");
@@ -116,6 +178,7 @@ export default function GeneratePage() {
     setCurrentChunk(0);
     setTotalChunks(0);
     setQaCount(0);
+    setError(null);
   };
 
   return (
