@@ -41,4 +41,4 @@ node_modules/
 pnpm-debug.log
 npm-debug.log
 yarn-error.log
-
+package-lock.json
