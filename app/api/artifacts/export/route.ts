@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     // Fetch real artifacts for the authenticated user
     const { data: artifacts, error: fetchError } = await supabase
       .from('artifacts')
-      .select('id, source_name, section_title, created_at, cards(id, question, answer, judge_score)')
+      .select('id, title, source_hash, created_at, cards(id, question, answer, judge_score)')
       .eq('user_id', user.id);
 
     if (fetchError) {
@@ -48,7 +48,9 @@ export async function GET(request: NextRequest) {
         for (const card of (artifact.cards || [])) {
           // Escape fields containing commas or quotes
           const escape = (s: string) => `"${(s || '').replace(/"/g, '""')}"`;
-          csv += `${artifact.id},${escape(artifact.source_name)},${escape(artifact.section_title)},${escape(card.question)},${escape(card.answer)},${card.judge_score ?? ''}\n`;
+          const source = artifact.source_hash ? artifact.source_hash.substring(0, 8) + '...' : 'Unknown Source';
+          const section = artifact.title || (artifact.source_hash ? `Document (${artifact.source_hash.substring(0, 8)})` : 'Document');
+          csv += `${artifact.id},${escape(source)},${escape(section)},${escape(card.question)},${escape(card.answer)},${card.judge_score ?? ''}\n`;
         }
       }
       return new NextResponse(csv, {

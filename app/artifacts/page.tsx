@@ -14,10 +14,10 @@ export default async function ArtifactsPage() {
   // Map the Supabase snake_case data to the camelCase props expected by the Client Component
   const artifacts = (rawArtifacts || []).map((artifact) => ({
     id: artifact.id,
-    source: artifact.source_hash || "Unknown Source", // we don't have human readable source right now, could use title
+    source: artifact.source_hash ? artifact.source_hash.substring(0, 8) + "..." : "Unknown Source",
     book: artifact.title?.split(" - ")[0] || "Unknown Book",
     chapter: artifact.title?.split(" - ")[1] || "Unknown Chapter",
-    section: artifact.title || artifact.source_hash || "Document",
+    section: artifact.title || (artifact.source_hash ? `Document (${artifact.source_hash.substring(0, 8)})` : "Document"),
     createdAt: artifact.created_at,
     outline: artifact.outline || [],
     qaPairs: (artifact.cards || []).map((card: { question: string; answer: string; source_context: string | null; judge_score: number | null; judge_feedback: string | null }) => ({

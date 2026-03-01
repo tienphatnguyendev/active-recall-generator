@@ -27,7 +27,7 @@ export async function GET(
     // Fetch artifact by ID — RLS ensures user can only access their own
     const { data: artifact, error: fetchError } = await supabase
       .from('artifacts')
-      .select('id, source_name, section_title, created_at, cards(id, question, answer, judge_score)')
+      .select('id, title, source_hash, created_at, cards(id, question, answer, judge_score)')
       .eq('id', id)
       .single();
 
@@ -36,7 +36,9 @@ export async function GET(
     }
 
     if (format === 'json') {
-      const body = JSON.stringify({ id: artifact.id, source: artifact.source_name, section: artifact.section_title, qaPairs: artifact.cards || [] }, null, 2);
+      const source = artifact.source_hash ? artifact.source_hash.substring(0, 8) + '...' : 'Unknown Source';
+      const section = artifact.title || (artifact.source_hash ? `Document (${artifact.source_hash.substring(0, 8)})` : 'Document');
+      const body = JSON.stringify({ id: artifact.id, source, section, qaPairs: artifact.cards || [] }, null, 2);
       return new NextResponse(body, {
         status: 200,
         headers: {
