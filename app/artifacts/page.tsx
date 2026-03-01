@@ -20,7 +20,7 @@ export default async function ArtifactsPage() {
     section: artifact.title || artifact.source_hash || "Document",
     createdAt: artifact.created_at,
     outline: artifact.outline || [],
-    qaPairs: (artifact.cards || []).map((card: any) => ({
+    qaPairs: (artifact.cards || []).map((card: { question: string; answer: string; source_context: string | null; judge_score: number | null; judge_feedback: string | null }) => ({
       question: card.question,
       answer: card.answer,
       sourceContext: card.source_context,

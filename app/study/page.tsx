@@ -26,7 +26,7 @@ export default async function StudyPage() {
 
   // Flatten the cards from all artifacts into the format StudyClient expects
   const initialCards = (rawArtifacts || []).flatMap((artifact) =>
-    (artifact.cards || []).map((card: any) => ({
+    (artifact.cards || []).map((card: { id: string; question: string; answer: string; source_context: string | null; judge_score: number | null }) => ({
       id: card.id || Math.random().toString(36), // fallback id just in case
       question: card.question,
       answer: card.answer,

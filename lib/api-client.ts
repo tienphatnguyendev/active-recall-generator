@@ -1,7 +1,18 @@
 /**
  * Centralized API client that automatically attaches Authorization headers,
  * handles token refreshing, and normalizes error responses.
+ *
+ * IMPORTANT: This module uses module-level mutable state for token management.
+ * It must ONLY be imported in client-side code ('use client' components).
+ * Importing in Server Components or API routes risks token leakage between requests.
  */
+if (typeof window === "undefined") {
+  console.warn(
+    "[api-client] WARNING: api-client.ts was imported in a server context. " +
+    "Module-level mutable state (_accessToken, _refreshFn) is unsafe server-side. " +
+    "Only import this module in 'use client' components."
+  );
+}
 
 export class ApiError extends Error {
   constructor(
