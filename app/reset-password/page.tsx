@@ -3,7 +3,6 @@
 import { Suspense, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
-import { api, ApiError } from "@/lib/api-client";
 
 function ResetPasswordForm() {
   const searchParams = useSearchParams();
@@ -30,14 +29,22 @@ function ResetPasswordForm() {
 
     setIsLoading(true);
     try {
-      await api.post("/api/auth/reset-password", { token, password });
-      router.push("/login?reset=1");
-    } catch (err) {
-      if (err instanceof ApiError) {
-        setError(err.message);
-      } else {
-        setError("Something went wrong. Please try again.");
+      const res = await fetch("/api/auth/reset-password", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ token, password }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || "Failed to reset password");
       }
+
+      router.push("/login?reset=1");
+    } catch (err: any) {
+      setError(err.message || "Something went wrong. Please try again.");
     } finally {
       setIsLoading(false);
     }

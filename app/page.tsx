@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback } from "react";
 import { Nav } from "@/components/nav";
+import { useAuth } from "@/components/auth/auth-context";
 import { PipelineStatus, DEFAULT_STAGES } from "@/components/pipeline-status";
 import { usePipelineSSE, PipelineEvent } from "@/hooks/use-pipeline-sse";
 import { revalidateArtifacts } from "@/app/actions/artifacts";
@@ -54,6 +55,7 @@ export default function GeneratePage() {
   const [totalChunks, setTotalChunks] = useState(0);
   const [qaCount, setQaCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const { isAuthenticated } = useAuth();
 
   // Refs to control the promise-based sequential flow
   const resolveRef = useRef<(() => void) | null>(null);
@@ -307,6 +309,7 @@ export default function GeneratePage() {
                   onClick={handleSubmit}
                   disabled={
                     isRunning ||
+                    !isAuthenticated ||
                     !markdown.trim() ||
                     !bookName.trim() ||
                     !chapterName.trim()
@@ -390,13 +393,40 @@ export default function GeneratePage() {
               </div>
             )}
 
-            {/* Info card */}
-            {!isRunning && !isDone && (
-              <div className="border border-border bg-card p-5">
-                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-foreground">
-                  How it works
+            {/* Auth warning */}
+            {!isAuthenticated && (
+              <div className="border border-primary/30 bg-primary/5 p-5">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-primary">
+                  Sign in required
                 </p>
-                <ol className="space-y-3">
+                <p className="text-sm leading-relaxed text-muted-foreground">
+                  You must{" "}
+                  <a href="/login" className="font-medium text-primary hover:underline">
+                    sign in
+                  </a>{" "}
+                  to run the pipeline.
+                </p>
+              </div>
+            )}
+
+            {/* Info card or Error */}
+            {isAuthenticated && !isRunning && !isDone && (
+              <div className={`border p-5 ${error ? "border-destructive/50 bg-destructive/10" : "border-border bg-card"}`}>
+                {error ? (
+                  <>
+                    <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-destructive">
+                      Pipeline Error
+                    </p>
+                    <p className="text-sm leading-relaxed text-destructive/90">
+                      {error}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-foreground">
+                      How it works
+                    </p>
+                    <ol className="space-y-3">
                   {[
                     {
                       step: "01",
@@ -420,7 +450,9 @@ export default function GeneratePage() {
                       </span>
                     </li>
                   ))}
-                </ol>
+                    </ol>
+                  </>
+                )}
               </div>
             )}
           </div>

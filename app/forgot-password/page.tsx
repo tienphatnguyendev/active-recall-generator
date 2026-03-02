@@ -2,7 +2,6 @@
 
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
-import { api } from "@/lib/api-client";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -16,7 +15,18 @@ export default function ForgotPasswordPage() {
     setIsLoading(true);
 
     try {
-      await api.post("/api/auth/forgot-password", { email });
+      const res = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to send reset link");
+      }
+
       setSubmitted(true);
     } catch {
       setError("Something went wrong. Please try again.");
