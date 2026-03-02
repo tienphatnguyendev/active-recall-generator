@@ -71,7 +71,8 @@ def outline_draft_node(state: GraphState) -> dict:
             {"role": "system", "content": OUTLINE_SYSTEM_PROMPT},
             {"role": "user", "content": state["source_content"]},
         ],
-        token_estimate=1000
+        token_estimate=1000,
+        tier="fast",
     )
 
     return {"outline": response}
@@ -109,7 +110,8 @@ def qa_draft_node(state: GraphState) -> dict:
             {"role": "system", "content": QA_SYSTEM_PROMPT},
             {"role": "user", "content": f"Source:\n{state['source_content']}\n\nOutline:\n{outline_text}"},
         ],
-        token_estimate=2000
+        token_estimate=2000,
+        tier="reasoning",
     )
 
     artifact = FinalArtifactV1(
@@ -148,7 +150,8 @@ def judge_node(state: GraphState) -> dict:
             {"role": "system", "content": JUDGE_SYSTEM_PROMPT},
             {"role": "user", "content": f"Source:\n{state['source_content']}\n\nQ&A Pairs:\n{qa_text}"},
         ],
-        token_estimate=1500
+        token_estimate=1500,
+        tier="fast",
     )
 
     artifact = state["artifact"]
@@ -196,7 +199,8 @@ def revise_node(state: GraphState) -> dict:
             {"role": "system", "content": REVISE_SYSTEM_PROMPT},
             {"role": "user", "content": f"Source:\n{state['source_content']}\n\nPairs to Revise:\n{failing_text}"},
         ],
-        token_estimate=1500
+        token_estimate=1500,
+        tier="reasoning",
     )
 
     # Replace the failing pairs with the revised ones (mapping sequentially for now)
