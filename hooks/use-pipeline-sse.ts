@@ -66,7 +66,7 @@ export function usePipelineSSE({ onEvent, onClose }: UsePipelineSSEOptions) {
 
       const token = getAccessToken();
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "";
-      const url = `${apiUrl}/api/generate`;
+      const url = `${apiUrl.replace(/\/$/, '')}/api/generate`;
 
       console.log("[SSE] Connecting to:", url);
       console.log("[SSE] Token present:", !!token);
