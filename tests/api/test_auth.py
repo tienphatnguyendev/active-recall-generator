@@ -20,6 +20,7 @@ def _make_valid_token(user_id: str = "user-123") -> str:
     """Create a valid JWT with proper claims."""
     return _make_token({
         "sub": user_id,
+        "aud": "authenticated",
         "role": "authenticated",
         "exp": int(time.time()) + 3600,
         "iss": "https://test.supabase.co/auth/v1",
@@ -72,6 +73,7 @@ def test_expired_token(auth_app):
     """An expired JWT should return 401."""
     token = _make_token({
         "sub": "user-123",
+        "aud": "authenticated",
         "role": "authenticated",
         "exp": int(time.time()) - 3600,  # expired 1h ago
     })
@@ -86,6 +88,7 @@ def test_expired_token(auth_app):
 def test_token_missing_sub_claim(auth_app):
     """A JWT without a "sub" claim should return 401."""
     token = _make_token({
+        "aud": "authenticated",
         "role": "authenticated",
         "exp": int(time.time()) + 3600,
     })
