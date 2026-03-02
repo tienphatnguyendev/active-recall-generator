@@ -23,6 +23,8 @@ validated_origins = []
 for origin in raw_origins:
     if origin == "*":
         continue
+    # Strip any trailing slashes from the origin
+    origin = origin.rstrip("/")
     if origin.startswith(("http://", "https://")):
         validated_origins.append(origin)
 
@@ -33,6 +35,7 @@ if not validated_origins:
 app.add_middleware(
     CORSMiddleware,
     allow_origins=validated_origins,
+    allow_origin_regex=r"https://.*\.vercel\.app",  # Allow any Vercel preview deployment
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
