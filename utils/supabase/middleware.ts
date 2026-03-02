@@ -37,8 +37,7 @@ export async function updateSession(request: NextRequest) {
 
   // Single source of truth for routes accessible without authentication
   const publicRoutes = ['/login', '/register', '/forgot-password', '/reset-password'];
-  const isPublicRoute = request.nextUrl.pathname === '/' ||
-    publicRoutes.some(route => request.nextUrl.pathname.startsWith(route));
+  const isPublicRoute = publicRoutes.some(route => request.nextUrl.pathname.startsWith(route));
 
   // Redirect unauthenticated users to login (unless on a public route)
   if (!user && !isPublicRoute) {

@@ -68,6 +68,9 @@ export function usePipelineSSE({ onEvent, onClose }: UsePipelineSSEOptions) {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "";
       const url = `${apiUrl}/api/generate`;
 
+      console.log("[SSE] Connecting to:", url);
+      console.log("[SSE] Token present:", !!token);
+
       try {
         await fetchEventSource(url, {
           method: "POST",
@@ -91,10 +94,10 @@ export function usePipelineSSE({ onEvent, onClose }: UsePipelineSSEOptions) {
               response.status !== 429
             ) {
               // client-side errors are usually non-retriable:
-              throw new Error(`Fatal error: ${response.statusText}`);
+              throw new Error(`Fatal error (${response.status}): ${response.statusText || "see browser network tab"}`);
             } else {
               // server-side errors or rate limits: throw to trigger retry
-              throw new Error(`Retryable error: ${response.statusText}`);
+              throw new Error(`Retryable error (${response.status}): ${response.statusText || "see browser network tab"}`);
             }
           },
 

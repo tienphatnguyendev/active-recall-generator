@@ -1,1 +1,16 @@
-{"projectId":"prj_dqubejQgXf1jQpn3JRnEJe6GJKrm","orgId":"team_A8rYUia5JC0TVc3JaOVlLlt6","projectName":"v0-active-recall-generator"}
+{
+  "projectId": "prj_yZH65fh4taCcIbgh42dzVMJqTPMu",
+  "orgId": "team_mX2nYXlopn36dSqguPCayr0n",
+  "projectName": "note-taker",
+  "settings": {
+    "createdAt": 1772417717566,
+    "framework": "nextjs",
+    "devCommand": null,
+    "installCommand": null,
+    "buildCommand": null,
+    "outputDirectory": null,
+    "rootDirectory": null,
+    "directoryListing": false,
+    "nodeVersion": "24.x"
+  }
+}
