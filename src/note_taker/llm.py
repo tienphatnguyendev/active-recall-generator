@@ -14,6 +14,7 @@ except ImportError:
     ChatCerebras = None
 
 from langchain_sambanova import ChatSambaNova
+from openai import NotFoundError, AuthenticationError
 from tenacity import (
     retry,
     retry_if_exception_type,
@@ -38,7 +39,9 @@ TIER_CONFIGS: Dict[str, List[dict]] = {
          "tpm": None},
     ],
     "reasoning": [
-        {"provider": "cerebras", "model": "llama3.1-70b",
+        # NOTE: Cerebras retired llama3.1-70b. Using llama3.1-8b as fast-path;
+        # heavier reasoning falls through to Groq/SambaNova 70B models.
+        {"provider": "cerebras", "model": "llama3.1-8b",
          "env_key": "CEREBRAS_API_KEYS", "fallback_env": "CEREBRAS_API_KEY",
          "tpm": 64_000},
         {"provider": "groq", "model": "llama-3.3-70b-versatile",
@@ -168,24 +171,36 @@ def get_llm(tier: str = "reasoning") -> BaseChatModel:
     return _factory.get_llm(tier)
 
 
+# --- Permanent vs. Transient Error Classification ---
+_PERMANENT_ERROR_TYPES = (NotFoundError, AuthenticationError)
+
+
+def _is_permanent_error(exc: Exception) -> bool:
+    """Return True if the error will never succeed on retry with the same provider.
+
+    Examples: 404 model_not_found, 401 invalid API key.
+    These should trigger an immediate provider fallback, not exponential backoff.
+    """
+    if isinstance(exc, _PERMANENT_ERROR_TYPES):
+        return True
+    # Some providers wrap OpenAI errors inside a generic Exception
+    msg = str(exc).lower()
+    return any(tag in msg for tag in ("model_not_found", "does not exist", "invalid api key"))
+
+
 @retry(
-    retry=retry_if_exception_type((Exception,)),  # Broad to catch different provider errors
+    retry=retry_if_exception_type((Exception,)),
     wait=wait_exponential(multiplier=1, min=4, max=60),
-    stop=stop_after_attempt(5),
+    stop=stop_after_attempt(3),
     before_sleep=before_sleep_log(logger, logging.WARNING),
     reraise=True,
 )
-def invoke_with_backoff(runnable, *args, token_estimate: int = 500, **kwargs):
-    """Invoke a LangChain runnable with exponential backoff and proactive pacing.
-
-    Retries up to 5 times on exceptions (often rate limits).
-    Also checks the ``TokenTracker`` to proactively sleep if close to the 
-    TPM limit (default 6000, can be adjusted based on active provider).
-    """
+def _invoke_single_provider(runnable, *args, token_estimate: int = 500, **kwargs):
+    """Low-level invoke with exponential backoff for *transient* errors only."""
     tracker.wait_if_needed(token_estimate)
-    
+
     response = runnable.invoke(*args, **kwargs)
-    
+
     try:
         if hasattr(response, 'response_metadata'):
             usage = response.response_metadata.get('token_usage', {})
@@ -196,3 +211,103 @@ def invoke_with_backoff(runnable, *args, token_estimate: int = 500, **kwargs):
         logger.warning(f"Failed to track token usage: {e}")
 
     return response
+
+
+def invoke_with_backoff(runnable, *args, token_estimate: int = 500, tier: str | None = None, **kwargs):
+    """Invoke a LangChain runnable with provider-level fallback.
+
+    1. Tries the given ``runnable`` with exponential backoff (3 attempts).
+    2. On *permanent* errors (model not found, auth failure) **immediately**
+       falls back to the next provider in the same tier.
+    3. On *transient* errors (rate limits, timeouts) retries with backoff
+       before falling back.
+
+    Parameters
+    ----------
+    runnable : BaseChatModel | RunnableSequence
+        The LangChain runnable to invoke.
+    tier : str, optional
+        The tier name ("fast" or "reasoning") used to resolve fallback
+        providers.  If ``None``, no provider fallback is attempted.
+    """
+    last_exc: Exception | None = None
+    tried_providers: list[str] = []
+
+    # First attempt with the provided runnable
+    try:
+        return _invoke_single_provider(runnable, *args, token_estimate=token_estimate, **kwargs)
+    except Exception as exc:
+        last_exc = exc
+        tried_providers.append(_runnable_label(runnable))
+        if not _is_permanent_error(exc):
+            # Transient error already retried 3x — but we can still try other providers
+            logger.warning(f"Provider {tried_providers[-1]} exhausted retries: {exc}")
+        else:
+            logger.warning(f"Permanent error from {tried_providers[-1]}, skipping retries: {exc}")
+
+    # Provider-level fallback
+    if tier is None:
+        raise last_exc  # type: ignore[misc]
+
+    configs = TIER_CONFIGS.get(tier, [])
+    for config in configs:
+        label = f"{config['provider']}:{config['model']}"
+        if label in tried_providers:
+            continue
+
+        keys = _factory._get_keys(config)
+        if not keys:
+            logger.info(f"[Fallback] Skipping {label}: no API keys")
+            continue
+
+        api_key = _factory._next_key(config["env_key"], keys)
+        try:
+            fallback_llm = _factory._create_llm(config, api_key)
+        except (ImportError, ValueError) as e:
+            logger.warning(f"[Fallback] Cannot create {label}: {e}")
+            continue
+
+        # Re-apply structured output wrapper if the original runnable had one
+        fallback_runnable = _rebuild_runnable(runnable, fallback_llm)
+        tried_providers.append(label)
+
+        logger.info(f"[Fallback] Trying {label}")
+        try:
+            return _invoke_single_provider(
+                fallback_runnable, *args, token_estimate=token_estimate, **kwargs
+            )
+        except Exception as exc:
+            last_exc = exc
+            if _is_permanent_error(exc):
+                logger.warning(f"[Fallback] Permanent error from {label}: {exc}")
+            else:
+                logger.warning(f"[Fallback] {label} exhausted retries: {exc}")
+
+    raise RuntimeError(
+        f"All providers exhausted for tier '{tier}'. "
+        f"Tried: {tried_providers}. Last error: {last_exc}"
+    ) from last_exc
+
+
+def _runnable_label(runnable) -> str:
+    """Best-effort label for logging."""
+    if hasattr(runnable, 'model_name'):
+        return str(runnable.model_name)
+    if hasattr(runnable, 'bound') and hasattr(runnable.bound, 'model_name'):
+        return str(runnable.bound.model_name)
+    return type(runnable).__name__
+
+
+def _rebuild_runnable(original, new_llm: BaseChatModel):
+    """If the original runnable has structured-output binding, apply it to new_llm."""
+    # LangChain wraps structured output in a RunnableSequence with .bound
+    if hasattr(original, 'bound') and hasattr(original, 'kwargs'):
+        schema = original.kwargs.get('schema') or original.kwargs.get('output_schema')
+        if schema:
+            return new_llm.with_structured_output(schema)
+    # For RunnableSequence chains created by with_structured_output
+    if hasattr(original, 'first') and hasattr(original, 'middle') and hasattr(original, 'last'):
+        # Try to find the schema from the output parser at the end
+        if hasattr(original.last, 'schema'):
+            return new_llm.with_structured_output(original.last.schema)
+    return new_llm
