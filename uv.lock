@@ -583,16 +583,16 @@ wheels = [
 
 [[package]]
 name = "langchain-openai"
-version = "0.3.35"
+version = "0.3.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "langchain-core" },
     { name = "openai" },
     { name = "tiktoken" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/fb/96/06d0d25a37e05a0ff2d918f0a4b0bf0732aed6a43b472b0b68426ce04ef8/langchain_openai-0.3.35.tar.gz", hash = "sha256:fa985fd041c3809da256a040c98e8a43e91c6d165b96dcfeb770d8bd457bf76f", size = 786635, upload-time = "2025-10-06T15:09:28.463Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/28/07/cdd02d4e8e4bf28963f4d191af35486a8c78ac429285392ba7b168a1564c/langchain_openai-0.3.3.tar.gz", hash = "sha256:aaaee691f145d4ed3035fe23dce69e3212c8de7e208e650c1ce292960287725c", size = 48482, upload-time = "2025-01-29T22:30:44.269Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d8/d5/c90c5478215c20ee71d8feaf676f7ffd78d0568f8c98bd83f81ce7562ed7/langchain_openai-0.3.35-py3-none-any.whl", hash = "sha256:76d5707e6e81fd461d33964ad618bd326cb661a1975cef7c1cb0703576bdada5", size = 75952, upload-time = "2025-10-06T15:09:27.137Z" },
+    { url = "https://files.pythonhosted.org/packages/16/e6/5a0841a3792c2cd8e9991f76920298af01be9afffc08681bfdeae66fc20b/langchain_openai-0.3.3-py3-none-any.whl", hash = "sha256:979ef0d9eca9a34d7c39cd9d0f66d1d38f2f10a5a8c723bbc7e7a8275259c71a", size = 54511, upload-time = "2025-01-29T22:30:43.016Z" },
 ]
 
 [[package]]
@@ -939,6 +939,7 @@ dependencies = [
     { name = "httpx" },
     { name = "langchain-cerebras" },
     { name = "langchain-groq" },
+    { name = "langchain-openai" },
     { name = "langchain-sambanova" },
     { name = "langfuse" },
     { name = "langgraph" },
@@ -962,6 +963,7 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.27.0" },
     { name = "langchain-cerebras", specifier = ">=0.6.0" },
     { name = "langchain-groq", specifier = ">=0.3.0,<1.0.0" },
+    { name = "langchain-openai", specifier = "<0.3.34" },
     { name = "langchain-sambanova", specifier = ">=0.2.0" },
     { name = "langfuse", specifier = ">=3.7.0" },
     { name = "langgraph", specifier = ">=0.6.11" },
@@ -980,7 +982,7 @@ requires-dist = [
 
 [[package]]
 name = "openai"
-version = "2.21.0"
+version = "1.109.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
@@ -992,9 +994,9 @@ dependencies = [
     { name = "tqdm" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/92/e5/3d197a0947a166649f566706d7a4c8f7fe38f1fa7b24c9bcffe4c7591d44/openai-2.21.0.tar.gz", hash = "sha256:81b48ce4b8bbb2cc3af02047ceb19561f7b1dc0d4e52d1de7f02abfd15aa59b7", size = 644374, upload-time = "2026-02-14T00:12:01.577Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c6/a1/a303104dc55fc546a3f6914c842d3da471c64eec92043aef8f652eb6c524/openai-1.109.1.tar.gz", hash = "sha256:d173ed8dbca665892a6db099b4a2dfac624f94d20a93f46eb0b56aae940ed869", size = 564133, upload-time = "2025-09-24T13:00:53.075Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/cc/56/0a89092a453bb2c676d66abee44f863e742b2110d4dbb1dbcca3f7e5fc33/openai-2.21.0-py3-none-any.whl", hash = "sha256:0bc1c775e5b1536c294eded39ee08f8407656537ccc71b1004104fe1602e267c", size = 1103065, upload-time = "2026-02-14T00:11:59.603Z" },
+    { url = "https://files.pythonhosted.org/packages/1d/2a/7dd3d207ec669cacc1f186fd856a0f61dbc255d24f6fdc1a6715d6051b0f/openai-1.109.1-py3-none-any.whl", hash = "sha256:6bcaf57086cf59159b8e27447e4e7dd019db5d29a438072fbd49c290c7e65315", size = 948627, upload-time = "2025-09-24T13:00:50.754Z" },
 ]
 
 [[package]]

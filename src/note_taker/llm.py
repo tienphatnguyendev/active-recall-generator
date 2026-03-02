@@ -38,13 +38,13 @@ TIER_CONFIGS: Dict[str, List[dict]] = {
          "tpm": None},
     ],
     "reasoning": [
-        {"provider": "cerebras", "model": "gpt-oss-120b",
+        {"provider": "cerebras", "model": "llama3.1-70b",
          "env_key": "CEREBRAS_API_KEYS", "fallback_env": "CEREBRAS_API_KEY",
          "tpm": 64_000},
         {"provider": "groq", "model": "llama-3.3-70b-versatile",
          "env_key": "GROQ_API_KEYS", "fallback_env": "GROQ_API_KEY",
          "tpm": 12_000},
-        {"provider": "sambanova", "model": "DeepSeek-R1-Distill-Llama-70B",
+        {"provider": "sambanova", "model": "Meta-Llama-3.1-70B-Instruct",
          "env_key": "SAMBANOVA_API_KEYS", "fallback_env": "SAMBANOVA_API_KEY",
          "tpm": None},
     ],
@@ -149,13 +149,18 @@ class TieredLLMFactory:
             if keys:
                 api_key = self._next_key(config["env_key"], keys)
                 self._tier_indices[tier] = (idx + 1) % len(configs)
-                logger.info(
-                    f"[LLM Factory] tier={tier} → "
-                    f"{config['provider']}:{config['model']}"
-                )
-                return self._create_llm(config, api_key)
+                try:
+                    llm = self._create_llm(config, api_key)
+                    logger.info(
+                        f"[LLM Factory] tier={tier} → "
+                        f"{config['provider']}:{config['model']}"
+                    )
+                    return llm
+                except ImportError as e:
+                    logger.warning(f"[LLM Factory] Skipping {config['provider']} due to missing dependency: {e}")
+                    continue
 
-        raise RuntimeError(f"No API keys configured for tier '{tier}'")
+        raise RuntimeError(f"No usable providers or API keys configured for tier '{tier}'")
 
 _factory = TieredLLMFactory()
 
