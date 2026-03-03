@@ -83,10 +83,12 @@ async def _generate_events(
     }
 
     try:
+        logger.info(f"Starting pipeline generation for chunk_id={chunk_id}, user={user.id}")
         graph = build_graph()
         last_artifact = None
 
         for node_output in graph.stream(initial_state):
+            logger.info(f"Pipeline running: Node output received - {list(node_output.keys())}")
             # LangGraph stream yields {node_name: {state_updates}}
             for node_name, output in node_output.items():
                 stage = NODE_TO_STAGE.get(node_name, node_name)
@@ -128,6 +130,7 @@ async def _generate_events(
         
         # After pipeline, save to Supabase
         if last_artifact:
+            logger.info(f"Pipeline completed for chunk_id={chunk_id}. Saving artifact to Supabase...")
             yield {
                 "event": "stage_update",
                 "data": SSEStageEvent(
@@ -144,6 +147,7 @@ async def _generate_events(
                 title=request.title,
                 artifact=last_artifact,
             )
+            logger.info(f"Successfully saved artifact {artifact_id} for chunk_id={chunk_id}")
 
             yield {
                 "event": "stage_update",
