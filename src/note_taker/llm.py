@@ -41,6 +41,13 @@ TIER_CONFIGS: Dict[str, List[dict]] = {
     ],
     "reasoning": [
         {
+            "provider": "cerebras",
+            "model": "gpt-oss-120b",
+            "env_key": "CEREBRAS_API_KEYS",
+            "fallback_env": "CEREBRAS_API_KEY",
+            "tpm": 12_000,
+        },
+        {
             "provider": "groq",
             "model": "openai/gpt-oss-120b",
             "env_key": "GROQ_API_KEYS",
@@ -48,8 +55,15 @@ TIER_CONFIGS: Dict[str, List[dict]] = {
             "tpm": 12_000,
         },
         {
+            "provider": "cerebras",
+            "model": "llama3.1-8b",
+            "env_key": "CEREBRAS_API_KEYS",
+            "fallback_env": "CEREBRAS_API_KEY",
+            "tpm": 12_000,
+        },
+        {
             "provider": "groq",
-            "model": "moonshotai/kimi-k2-instruct",
+            "model": "llama-3.3-70b-versatile",
             "env_key": "GROQ_API_KEYS",
             "fallback_env": "GROQ_API_KEY",
             "tpm": 12_000,
@@ -149,15 +163,30 @@ class TieredLLMFactory:
             if keys:
                 api_key = self._next_key(config["env_key"], keys)
                 self._tier_indices[tier] = (idx + 1) % len(configs)
-                
+
                 provider = config["provider"]
                 model_name = config["model"]
-                
+
                 if provider == "groq":
                     try:
                         client = openai.OpenAI(
-                            base_url="https://api.groq.com/openai/v1",
-                            api_key=api_key
+                            base_url="https://api.groq.com/openai/v1", api_key=api_key
+                        )
+                        model = outlines.from_openai(client, model_name)
+                        logger.info(
+                            f"[LLM Factory] tier={tier} → "
+                            f"{config['provider']}:{config['model']} via outlines"
+                        )
+                        return model, config
+                    except Exception as e:
+                        logger.warning(
+                            f"[LLM Factory] Skipping {config['provider']} due to error: {e}"
+                        )
+                        continue
+                elif provider == "cerebras":
+                    try:
+                        client = openai.OpenAI(
+                            base_url="https://api.cerebras.ai/v1", api_key=api_key
                         )
                         model = outlines.from_openai(client, model_name)
                         logger.info(
@@ -198,19 +227,25 @@ def _is_permanent_error(exc: Exception) -> bool:
     before_sleep=before_sleep_log(logger, logging.WARNING),
     reraise=True,
 )
-def _invoke_single_outlines(model, prompt: str, schema: BaseModel, token_estimate: int = 500):
+def _invoke_single_outlines(
+    model, prompt: str, schema: BaseModel, token_estimate: int = 500
+):
     tracker.wait_if_needed(token_estimate)
-    
+
     # outlines does not inherently return token usage for OpenAI in standard calls
     # We rely on the estimator for throttling
     result = model(prompt, output_type=schema)
-    tracker.add_usage(token_estimate) # Best effort tracking
+    tracker.add_usage(token_estimate)  # Best effort tracking
     if isinstance(result, str):
         return schema.model_validate_json(result)
     return result
 
+
 def invoke_outlines_with_backoff(
-    prompt: str, schema: type[BaseModel], token_estimate: int = 500, tier: str = "reasoning"
+    prompt: str,
+    schema: type[BaseModel],
+    token_estimate: int = 500,
+    tier: str = "reasoning",
 ):
     """Invoke an Outlines model with provider-level fallback."""
     last_exc: Exception | None = None
@@ -222,7 +257,9 @@ def invoke_outlines_with_backoff(
     tried_providers.append(label)
 
     try:
-        return _invoke_single_outlines(model, prompt, schema, token_estimate=token_estimate)
+        return _invoke_single_outlines(
+            model, prompt, schema, token_estimate=token_estimate
+        )
     except Exception as exc:
         last_exc = exc
         if not _is_permanent_error(exc):
@@ -243,19 +280,32 @@ def invoke_outlines_with_backoff(
 
         try:
             fallback_api_key = _factory._next_key(fallback_config["env_key"], keys)
+            
+            base_url = ""
+            if fallback_config["provider"] == "groq":
+                base_url = "https://api.groq.com/openai/v1"
+            elif fallback_config["provider"] == "cerebras":
+                base_url = "https://api.cerebras.ai/v1"
+
             fallback_client = openai.OpenAI(
-                base_url="https://api.groq.com/openai/v1" if fallback_config["provider"] == "groq" else "",
-                api_key=fallback_api_key
+                base_url=base_url,
+                api_key=fallback_api_key,
             )
-            fallback_model = outlines.from_openai(fallback_client, fallback_config["model"])
+            fallback_model = outlines.from_openai(
+                fallback_client, fallback_config["model"]
+            )
             tried_providers.append(fallback_label)
             logger.info(f"[Fallback] Trying {fallback_label}")
-            
-            return _invoke_single_outlines(fallback_model, prompt, schema, token_estimate=token_estimate)
+
+            return _invoke_single_outlines(
+                fallback_model, prompt, schema, token_estimate=token_estimate
+            )
         except Exception as exc:
             last_exc = exc
             if _is_permanent_error(exc):
-                logger.warning(f"[Fallback] Permanent error from {fallback_label}: {exc}")
+                logger.warning(
+                    f"[Fallback] Permanent error from {fallback_label}: {exc}"
+                )
             else:
                 logger.warning(f"[Fallback] {fallback_label} exhausted retries: {exc}")
 
