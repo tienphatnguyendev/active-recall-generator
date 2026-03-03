@@ -69,8 +69,9 @@ def test_generate_rejects_missing_title():
 @patch("note_taker.api.generate.get_supabase_client")
 def test_generate_returns_sse_stream(mock_get_supabase, mock_save_supabase):
     """POST /api/generate should return a text/event-stream response and save to Supabase."""
+    from note_taker.models import LLMOutlineItem
     mock_save_supabase.return_value = "new-artifact-id"
-    
+
     # Build a mock artifact for the pipeline to "yield"
     mock_artifact = FinalArtifactV1(
         source_hash="abc123",
@@ -90,8 +91,7 @@ def test_generate_returns_sse_stream(mock_get_supabase, mock_save_supabase):
     mock_graph = MagicMock()
     mock_graph.stream.return_value = iter([
         {"check_database_node": {"skip_processing": False, "source_hash": "abc123"}},
-        {"outline_draft_node": {"outline": OutlineResponse(outline=[OutlineItem(title="Intro", level=1)])}},
-        {"qa_draft_node": {"artifact": mock_artifact}},
+        {"outline_draft_node": {"outline": OutlineResponse(outline=[LLMOutlineItem(title="Intro", level=1)])}},        {"qa_draft_node": {"artifact": mock_artifact}},
         {"judge_node": {"artifact": mock_artifact}},
         {"save_to_db_node": {}},
     ])

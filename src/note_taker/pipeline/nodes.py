@@ -1,7 +1,7 @@
 import hashlib
 from note_taker.database import DatabaseManager
 from note_taker.pipeline.state import GraphState
-from note_taker.llm import get_llm, invoke_with_backoff
+from note_taker.llm import invoke_outlines_with_backoff
 
 def calculate_hash(content: str) -> str:
     """Calculate SHA-256 hash of the source content."""
@@ -61,16 +61,11 @@ def outline_draft_node(state: GraphState) -> dict:
     """Generate a hierarchical outline from source content."""
     from note_taker.models import OutlineResponse
     
-    # Fast tier for outline generation
-    llm = get_llm(tier="fast")
-    structured_llm = llm.with_structured_output(OutlineResponse)
+    prompt = f"System: {OUTLINE_SYSTEM_PROMPT}\n\nUser: {state['source_content']}"
     
-    response = invoke_with_backoff(
-        structured_llm,
-        [
-            {"role": "system", "content": OUTLINE_SYSTEM_PROMPT},
-            {"role": "user", "content": state["source_content"]},
-        ],
+    response = invoke_outlines_with_backoff(
+        prompt=prompt,
+        schema=OutlineResponse,
         token_estimate=1000,
         tier="fast",
     )
@@ -88,7 +83,7 @@ Rules:
 
 def qa_draft_node(state: GraphState) -> dict:
     """Generate Q&A pairs from source content and outline."""
-    from note_taker.models import QADraftResponse, FinalArtifactV1
+    from note_taker.models import QADraftResponse, FinalArtifactV1, OutlineItem, QuestionAnswerPair
     
     # Needs outline from previous node
     outline_response = state.get("outline")
@@ -100,24 +95,29 @@ def qa_draft_node(state: GraphState) -> dict:
         for item in outline_response.outline
     )
 
-    # Reasoning tier for Q&A generation
-    llm = get_llm(tier="reasoning")
-    structured_llm = llm.with_structured_output(QADraftResponse)
+    prompt = f"System: {QA_SYSTEM_PROMPT}\n\nUser: Source:\n{state['source_content']}\n\nOutline:\n{outline_text}"
     
-    response = invoke_with_backoff(
-        structured_llm,
-        [
-            {"role": "system", "content": QA_SYSTEM_PROMPT},
-            {"role": "user", "content": f"Source:\n{state['source_content']}\n\nOutline:\n{outline_text}"},
-        ],
+    response = invoke_outlines_with_backoff(
+        prompt=prompt,
+        schema=QADraftResponse,
         token_estimate=2000,
         tier="reasoning",
     )
 
+    # Convert LLM items to internal items
+    internal_outline = [
+        OutlineItem(title=item.title, level=item.level)
+        for item in outline_response.outline
+    ]
+    internal_qa_pairs = [
+        QuestionAnswerPair(question=qa.question, answer=qa.answer, source_context=qa.source_context)
+        for qa in response.qa_pairs
+    ]
+
     artifact = FinalArtifactV1(
         source_hash=state["source_hash"],
-        outline=outline_response.outline,
-        qa_pairs=response.qa_pairs,
+        outline=internal_outline,
+        qa_pairs=internal_qa_pairs,
     )
     
     return {"artifact": artifact}
@@ -136,20 +136,16 @@ def judge_node(state: GraphState) -> dict:
     """Score each Q&A pair on accuracy, clarity, and recall-worthiness."""
     from note_taker.models import JudgeVerdict
     
-    llm = get_llm(tier="fast")
-    structured_llm = llm.with_structured_output(JudgeVerdict)
-
     qa_text = "\n".join(
         f"[{i}] Q: {qa.question}\n    A: {qa.answer}\n    Context: {qa.source_context}"
         for i, qa in enumerate(state["artifact"].qa_pairs)
     )
 
-    response = invoke_with_backoff(
-        structured_llm,
-        [
-            {"role": "system", "content": JUDGE_SYSTEM_PROMPT},
-            {"role": "user", "content": f"Source:\n{state['source_content']}\n\nQ&A Pairs:\n{qa_text}"},
-        ],
+    prompt = f"System: {JUDGE_SYSTEM_PROMPT}\n\nUser: Source:\n{state['source_content']}\n\nQ&A Pairs:\n{qa_text}"
+
+    response = invoke_outlines_with_backoff(
+        prompt=prompt,
+        schema=JudgeVerdict,
         token_estimate=1500,
         tier="fast",
     )
@@ -183,9 +179,6 @@ def revise_node(state: GraphState) -> dict:
     if not failing_indices:
         return {"revision_count": state.get("revision_count", 0) + 1}
 
-    llm = get_llm(tier="reasoning")
-    structured_llm = llm.with_structured_output(RevisionResponse)
-
     failing_text = "\n".join(
         f"[{i}] Q: {artifact.qa_pairs[i].question}\n"
         f"    A: {artifact.qa_pairs[i].answer}\n"
@@ -193,12 +186,11 @@ def revise_node(state: GraphState) -> dict:
         for i in failing_indices
     )
 
-    response = invoke_with_backoff(
-        structured_llm,
-        [
-            {"role": "system", "content": REVISE_SYSTEM_PROMPT},
-            {"role": "user", "content": f"Source:\n{state['source_content']}\n\nPairs to Revise:\n{failing_text}"},
-        ],
+    prompt = f"System: {REVISE_SYSTEM_PROMPT}\n\nUser: Source:\n{state['source_content']}\n\nPairs to Revise:\n{failing_text}"
+
+    response = invoke_outlines_with_backoff(
+        prompt=prompt,
+        schema=RevisionResponse,
         token_estimate=1500,
         tier="reasoning",
     )
@@ -206,11 +198,15 @@ def revise_node(state: GraphState) -> dict:
     # Replace the failing pairs with the revised ones (mapping sequentially for now)
     # The LLM returns a list of N revised pairs for the N failing ones.
     if len(response.revised_pairs) == len(failing_indices):
+        from note_taker.models import QuestionAnswerPair
         for idx, revised_qa in zip(failing_indices, response.revised_pairs):
-            # Reset judge score and feedback for the revised pair
-            revised_qa.judge_score = None
-            revised_qa.judge_feedback = None
-            artifact.qa_pairs[idx] = revised_qa
+            # Create internal QA pair, resetting judge score and feedback
+            new_qa = QuestionAnswerPair(
+                question=revised_qa.question,
+                answer=revised_qa.answer,
+                source_context=revised_qa.source_context
+            )
+            artifact.qa_pairs[idx] = new_qa
 
     return {
         "artifact": artifact,

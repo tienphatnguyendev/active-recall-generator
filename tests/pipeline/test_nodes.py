@@ -26,13 +26,13 @@ def base_state():
 def test_outline_draft_node_creates_outline(base_state):
     """outline_draft_node should create OutlineResponse and populate state['outline']."""
     from note_taker.pipeline.nodes import outline_draft_node
-    from note_taker.models import OutlineResponse, OutlineItem
+    from note_taker.models import OutlineResponse, LLMOutlineItem
     
     mock_response = OutlineResponse(
-        outline=[OutlineItem(title="Intro", level=1), OutlineItem(title="Agents", level=2)]
+        outline=[LLMOutlineItem(title="Intro", level=1), LLMOutlineItem(title="Agents", level=2)]
     )
-    with patch("note_taker.pipeline.nodes.get_llm") as mock_llm:
-        mock_llm.return_value.with_structured_output.return_value.invoke.return_value = mock_response
+    with patch("note_taker.pipeline.nodes.invoke_outlines_with_backoff") as mock_invoke:
+        mock_invoke.return_value = mock_response
         result = outline_draft_node(base_state)
         
     assert result["outline"] is not None
@@ -42,21 +42,21 @@ def test_outline_draft_node_creates_outline(base_state):
 def test_qa_draft_node_creates_qa_pairs(base_state):
     """qa_draft_node should create QADraftResponse based on outline and combine into FinalArtifactV1."""
     from note_taker.pipeline.nodes import qa_draft_node
-    from note_taker.models import OutlineResponse, OutlineItem, QADraftResponse, QuestionAnswerPair
+    from note_taker.models import OutlineResponse, LLMOutlineItem, QADraftResponse, LLMQuestionAnswerPair
     
     # Needs outline from previous step
     base_state["outline"] = OutlineResponse(
-        outline=[OutlineItem(title="Context", level=1)]
+        outline=[LLMOutlineItem(title="Context", level=1)]
     )
     
     mock_qa = QADraftResponse(
-        qa_pairs=[QuestionAnswerPair(
+        qa_pairs=[LLMQuestionAnswerPair(
             question="What is context?", answer="Important info", source_context="Context is nice."
         )]
     )
     
-    with patch("note_taker.pipeline.nodes.get_llm") as mock_llm:
-        mock_llm.return_value.with_structured_output.return_value.invoke.return_value = mock_qa
+    with patch("note_taker.pipeline.nodes.invoke_outlines_with_backoff") as mock_invoke:
+        mock_invoke.return_value = mock_qa
         result = qa_draft_node(base_state)
         
     assert result["artifact"] is not None
@@ -78,8 +78,8 @@ def test_judge_node_scores_qa_pairs(base_state):
         QAJudgement(question_index=0, accuracy_score=0.9, clarity_score=0.8,
                     recall_worthiness_score=0.85, overall_score=0.85, feedback="Good.")
     ])
-    with patch("note_taker.pipeline.nodes.get_llm") as mock_llm:
-        mock_llm.return_value.with_structured_output.return_value.invoke.return_value = mock_verdict
+    with patch("note_taker.pipeline.nodes.invoke_outlines_with_backoff") as mock_invoke:
+        mock_invoke.return_value = mock_verdict
         result = judge_node(base_state)
 
     assert result["artifact"].qa_pairs[0].judge_score == 0.85
@@ -88,7 +88,7 @@ def test_judge_node_scores_qa_pairs(base_state):
 def test_revise_node_replaces_failing_pairs(base_state):
     """revise_node should replace Q&A pairs with score < 0.7."""
     from note_taker.pipeline.nodes import revise_node
-    from note_taker.models import RevisionResponse, FinalArtifactV1
+    from note_taker.models import RevisionResponse, FinalArtifactV1, QuestionAnswerPair, OutlineItem, LLMQuestionAnswerPair
     
     failing_qa = QuestionAnswerPair(
         question="Bad Q", answer="Bad A", source_context="C",
@@ -105,13 +105,13 @@ def test_revise_node_replaces_failing_pairs(base_state):
     )
     base_state["revision_count"] = 0
 
-    revised_qa = QuestionAnswerPair(
+    revised_qa = LLMQuestionAnswerPair(
         question="Better Q", answer="Better A", source_context="C"
     )
     mock_response = RevisionResponse(revised_pairs=[revised_qa])
 
-    with patch("note_taker.pipeline.nodes.get_llm") as mock_llm:
-        mock_llm.return_value.with_structured_output.return_value.invoke.return_value = mock_response
+    with patch("note_taker.pipeline.nodes.invoke_outlines_with_backoff") as mock_invoke:
+        mock_invoke.return_value = mock_response
         result = revise_node(base_state)
 
     # Failing pair should be replaced, passing pair kept

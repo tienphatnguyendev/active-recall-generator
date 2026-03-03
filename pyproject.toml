@@ -25,6 +25,8 @@ dependencies = [
     "sse-starlette>=1.6.0",
     "pyjwt[crypto]>=2.11.0",
     "langchain-openai<0.3.34",
+    "outlines>=1.2.12",
+    "openai>=1.109.1",
 ]
 
 [build-system]

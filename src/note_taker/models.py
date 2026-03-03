@@ -54,9 +54,18 @@ class DraftResponse(BaseModel):
     outline: List[OutlineItem]
     qa_pairs: List[QuestionAnswerPair]
 
+class LLMOutlineItem(BaseModel):
+    title: str
+    level: int
+
+class LLMQuestionAnswerPair(BaseModel):
+    question: str
+    answer: str
+    source_context: str
+
 class OutlineResponse(BaseModel):
     """LLM response from the outline draft node."""
-    outline: List[OutlineItem]
+    outline: List[LLMOutlineItem]
     
     @model_validator(mode="before")
     @classmethod
@@ -65,7 +74,7 @@ class OutlineResponse(BaseModel):
 
 class QADraftResponse(BaseModel):
     """LLM response from the QA draft node."""
-    qa_pairs: List[QuestionAnswerPair]
+    qa_pairs: List[LLMQuestionAnswerPair]
     
     @model_validator(mode="before")
     @classmethod
@@ -83,7 +92,7 @@ class JudgeVerdict(BaseModel):
 
 class RevisionResponse(BaseModel):
     """LLM response from the revise node."""
-    revised_pairs: List[QuestionAnswerPair]
+    revised_pairs: List[LLMQuestionAnswerPair]
 
     @model_validator(mode="before")
     @classmethod
