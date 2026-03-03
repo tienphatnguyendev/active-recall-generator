@@ -31,6 +31,8 @@ NODE_TO_STAGE = {
 
 def _serialize_node_output(node_name: str, output: dict) -> dict | None:
     """Extract serializable summary data from a node's state update."""
+    if output is None:
+        return {}
     if node_name == "check_database_node":
         return {"skip_processing": output.get("skip_processing", False)}
     if node_name == "outline_draft_node":
@@ -88,6 +90,9 @@ async def _generate_events(
             # LangGraph stream yields {node_name: {state_updates}}
             for node_name, output in node_output.items():
                 stage = NODE_TO_STAGE.get(node_name, node_name)
+
+                if output is None:
+                    output = {}
 
                 # Track the latest artifact
                 if "artifact" in output and output["artifact"] is not None:
