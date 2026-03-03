@@ -25,11 +25,11 @@ logger = logging.getLogger(__name__)
 TIER_CONFIGS: Dict[str, List[dict]] = {
     "fast": [
         {
-            "provider": "groq",
-            "model": "openai/gpt-oss-20b",
-            "env_key": "GROQ_API_KEYS",
-            "fallback_env": "GROQ_API_KEY",
-            "tpm": 30_000,
+            "provider": "cerebras",
+            "model": "llama3.1-8b",
+            "env_key": "CEREBRAS_API_KEYS",
+            "fallback_env": "CEREBRAS_API_KEY",
+            "tpm": 12_000,
         },
         {
             "provider": "groq",
@@ -38,27 +38,27 @@ TIER_CONFIGS: Dict[str, List[dict]] = {
             "fallback_env": "GROQ_API_KEY",
             "tpm": 30_000,
         },
-    ],
-    "reasoning": [
-        {
-            "provider": "cerebras",
-            "model": "gpt-oss-120b",
-            "env_key": "CEREBRAS_API_KEYS",
-            "fallback_env": "CEREBRAS_API_KEY",
-            "tpm": 12_000,
-        },
         {
             "provider": "groq",
-            "model": "openai/gpt-oss-120b",
+            "model": "meta-llama/llama-4-maverick-17b-128e-instruct",
             "env_key": "GROQ_API_KEYS",
             "fallback_env": "GROQ_API_KEY",
-            "tpm": 12_000,
+            "tpm": 30_000,
         },
+    ],
+    "reasoning": [
+        # {
+        #     "provider": "cerebras",
+        #     "model": "gpt-oss-120b",
+        #     "env_key": "CEREBRAS_API_KEYS",
+        #     "fallback_env": "CEREBRAS_API_KEY",
+        #     "tpm": 12_000,
+        # },
         {
-            "provider": "cerebras",
-            "model": "llama3.1-8b",
-            "env_key": "CEREBRAS_API_KEYS",
-            "fallback_env": "CEREBRAS_API_KEY",
+            "provider": "groq",
+            "model": "openai/gpt-oss-20b",
+            "env_key": "GROQ_API_KEYS",
+            "fallback_env": "GROQ_API_KEY",
             "tpm": 12_000,
         },
         {
@@ -280,7 +280,7 @@ def invoke_outlines_with_backoff(
 
         try:
             fallback_api_key = _factory._next_key(fallback_config["env_key"], keys)
-            
+
             base_url = ""
             if fallback_config["provider"] == "groq":
                 base_url = "https://api.groq.com/openai/v1"
