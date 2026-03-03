@@ -3,6 +3,8 @@
 import logging
 import os
 import time
+import json
+import re
 from collections import deque
 from typing import Dict, List, Optional, Tuple, Any
 
@@ -47,19 +49,21 @@ TIER_CONFIGS: Dict[str, List[dict]] = {
         },
     ],
     "reasoning": [
-        # {
-        #     "provider": "cerebras",
-        #     "model": "gpt-oss-120b",
-        #     "env_key": "CEREBRAS_API_KEYS",
-        #     "fallback_env": "CEREBRAS_API_KEY",
-        #     "tpm": 12_000,
-        # },
+        {
+            "provider": "cerebras",
+            "model": "gpt-oss-120b",
+            "env_key": "CEREBRAS_API_KEYS",
+            "fallback_env": "CEREBRAS_API_KEY",
+            "tpm": 12_000,
+            "supports_json_schema": False,
+        },
         {
             "provider": "groq",
             "model": "openai/gpt-oss-20b",
             "env_key": "GROQ_API_KEYS",
             "fallback_env": "GROQ_API_KEY",
             "tpm": 12_000,
+            "supports_json_schema": True,
         },
         {
             "provider": "groq",
@@ -67,6 +71,7 @@ TIER_CONFIGS: Dict[str, List[dict]] = {
             "env_key": "GROQ_API_KEYS",
             "fallback_env": "GROQ_API_KEY",
             "tpm": 12_000,
+            "supports_json_schema": False,
         },
     ],
 }
@@ -228,17 +233,42 @@ def _is_permanent_error(exc: Exception) -> bool:
     reraise=True,
 )
 def _invoke_single_outlines(
-    model, prompt: str, schema: BaseModel, token_estimate: int = 500
+    model, prompt: str, schema: BaseModel, config: dict, token_estimate: int = 500
 ):
     tracker.wait_if_needed(token_estimate)
 
-    # outlines does not inherently return token usage for OpenAI in standard calls
-    # We rely on the estimator for throttling
-    result = model(prompt, output_type=schema)
-    tracker.add_usage(token_estimate)  # Best effort tracking
-    if isinstance(result, str):
-        return schema.model_validate_json(result)
-    return result
+    supports_json_schema = config.get("supports_json_schema", True)
+
+    if supports_json_schema:
+        # outlines does not inherently return token usage for OpenAI in standard calls
+        # We rely on the estimator for throttling
+        result = model(prompt, output_type=schema)
+        tracker.add_usage(token_estimate)  # Best effort tracking
+        if isinstance(result, str):
+            return schema.model_validate_json(result)
+        return result
+    else:
+        # For models that don't support JSON Schema natively (like llama-3.3-70b-versatile on Groq)
+        # We pass the schema in the prompt and ask it to respond with JSON.
+        schema_json = json.dumps(schema.model_json_schema(), indent=2)
+        modified_prompt = prompt + f"\n\nYou must output ONLY valid JSON matching this schema:\n```json\n{schema_json}\n```\nDo not include any other text."
+        
+        # We don't pass output_type=schema to outlines, which drops the json_schema response format
+        result = model(modified_prompt)
+        tracker.add_usage(token_estimate)
+
+        if isinstance(result, str):
+            # Clean markdown formatting if present
+            clean_str = result.strip()
+            if clean_str.startswith("```json"):
+                clean_str = clean_str[7:]
+            elif clean_str.startswith("```"):
+                clean_str = clean_str[3:]
+            if clean_str.endswith("```"):
+                clean_str = clean_str[:-3]
+            clean_str = clean_str.strip()
+            return schema.model_validate_json(clean_str)
+        return result
 
 
 def invoke_outlines_with_backoff(
@@ -258,7 +288,7 @@ def invoke_outlines_with_backoff(
 
     try:
         return _invoke_single_outlines(
-            model, prompt, schema, token_estimate=token_estimate
+            model, prompt, schema, config, token_estimate=token_estimate
         )
     except Exception as exc:
         last_exc = exc
@@ -298,7 +328,7 @@ def invoke_outlines_with_backoff(
             logger.info(f"[Fallback] Trying {fallback_label}")
 
             return _invoke_single_outlines(
-                fallback_model, prompt, schema, token_estimate=token_estimate
+                fallback_model, prompt, schema, fallback_config, token_estimate=token_estimate
             )
         except Exception as exc:
             last_exc = exc
