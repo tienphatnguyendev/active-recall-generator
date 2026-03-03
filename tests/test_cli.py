@@ -1,4 +1,5 @@
 """Tests for the Typer CLI entrypoint (SOLO-39)."""
+
 import os
 import pytest
 from typer.testing import CliRunner
@@ -21,7 +22,11 @@ class TestCliInvocation:
     def test_nonexistent_file_shows_error(self):
         result = runner.invoke(app, ["TestBook:Ch1", "/tmp/nonexistent_file_xyz.md"])
         assert result.exit_code != 0
-        assert "not found" in result.output.lower() or "Error" in result.output or "error" in result.output
+        assert (
+            "not found" in result.output.lower()
+            or "Error" in result.output
+            or "error" in result.output
+        )
 
     def test_valid_file_processes_chunks(self, tmp_path):
         md = tmp_path / "test_chapter.md"
@@ -45,12 +50,19 @@ class TestCliWithRealData:
 
     @pytest.mark.skipif(
         not os.path.exists(
-            os.path.join(os.path.dirname(__file__), "..", "data", "raw", "building-applications-with", "chapter_000.md")
+            os.path.join(
+                os.path.dirname(__file__),
+                "..",
+                "data",
+                "raw",
+                "building-applications-with",
+                "chapter_006.md",
+            )
         ),
-        reason="Raw data files not present"
+        reason="Raw data files not present",
     )
-    def test_chapter_000_dry_run(self):
-        path = os.path.join(self.DATA_DIR, "chapter_000.md")
+    def test_chapter_006_dry_run(self):
+        path = os.path.join(self.DATA_DIR, "chapter_006.md")
         result = runner.invoke(app, ["BuildingAIAgents:Chapter1", path])
         assert result.exit_code == 0
         # Should process 16 chunks

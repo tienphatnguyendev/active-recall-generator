@@ -29,6 +29,15 @@ def save_artifact_to_supabase(
     Raises:
         Exception: If the Supabase insert fails.
     """
+    # 0) Self-healing: Ensure user profile exists in public.users
+    try:
+        user_response = client.table("users").select("id").eq("id", user_id).execute()
+        if not user_response.data:
+            logger.info(f"Self-healing: Creating missing profile for user {user_id}")
+            client.table("users").insert({"id": user_id}).execute()
+    except Exception as e:
+        logger.warning(f"Self-healing user profile failed: {e}")
+
     # 1) Insert artifact
     outline_json = [item.model_dump() for item in artifact.outline]
     artifact_row = {
