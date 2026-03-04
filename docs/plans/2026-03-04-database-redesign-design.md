@@ -1,25 +1,20 @@
 # Database Redesign: Hierarchical Folder Schema with `ltree`
-
 **Date:** 2026-03-04  
 **Status:** Approved  
 
 ## Problem
-
 The current schema stores artifacts in a flat structure tied directly to `user_id`.
 There is no concept of books, chapters, or sections. This makes it impossible to:
-
 - Query all cards/artifacts under a given book (recursively through nested levels)
 - Aggregate study progress per book or chapter
 - Organize content hierarchically
 
 ## Decision
-
 Use PostgreSQL's `ltree` extension to model an unlimited-depth folder tree.
 Each folder stores a materialized path (e.g., `ml_abc123.ch1_def456.s1_ghi789`),
 enabling instant ancestor/descendant queries via GiST-indexed `ltree` operators.
 
 ### Why `ltree` over alternatives?
-
 | Approach | Recursive reads | Aggregation | Move cost | Complexity |
 |---|---|---|---|---|
 | **`ltree` (chosen)** | O(1) via GiST index | Fast (single query) | Moderate (string update) | Low |
@@ -31,9 +26,7 @@ aggregated stats) are read-heavy, and `ltree` excels at exactly that. The trade-
 (slightly more work for folder moves) is acceptable since reorganization is infrequent.
 
 ## New Schema
-
 ### `folders` table (NEW)
-
 ```sql
 CREATE EXTENSION IF NOT EXISTS ltree;
 
@@ -51,7 +44,6 @@ CREATE INDEX idx_folders_user_id ON public.folders (user_id);
 ```
 
 ### `artifacts` table (MODIFIED)
-
 ```sql
 CREATE TABLE public.artifacts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -65,17 +57,13 @@ CREATE TABLE public.artifacts (
 
 CREATE INDEX idx_artifacts_folder_id ON public.artifacts (folder_id);
 ```
-
 - `user_id` removed — ownership inferred through `artifact → folder → user`.
 
 ### `cards` and `study_sessions` tables (UNCHANGED)
-
 Structure remains identical. Only the data is cleared.
 
 ## Path Convention
-
 Each path segment is a sanitized slug + short unique suffix to avoid collisions.
-
 | User action | `name` | `path` |
 |---|---|---|
 | Create book "Machine Learning" | Machine Learning | `ml_abc123` |
@@ -85,7 +73,6 @@ Each path segment is a sanitized slug + short unique suffix to avoid collisions.
 The `name` column stores the human-readable label. The `path` column is for querying only.
 
 ## Key Query Patterns
-
 ```sql
 -- All cards under a book (instant, GiST-indexed)
 SELECT c.* FROM cards c
@@ -108,16 +95,13 @@ WHERE f.path <@ 'ml_abc123';
 ```
 
 ## RLS Policies
-
 Ownership flows through the folder chain:
-
 - **folders**: `WHERE user_id = auth.uid()` (direct)
 - **artifacts**: `WHERE folder_id IN (user's folders)` (one join)
 - **cards**: `WHERE artifact_id IN (user's artifacts in user's folders)` (two joins)
 - **study_sessions**: `WHERE user_id = auth.uid()` (direct, unchanged)
 
 ## API Changes
-
 | Method | Endpoint | Change |
 |---|---|---|
 | `POST` | `/api/folders` | **New** — create folder (with optional `parent_id`) |
@@ -127,7 +111,6 @@ Ownership flows through the folder chain:
 | `POST` | `/api/generate` | **Modified** — adds required `folder_id` field |
 
 ## Migration Strategy
-
 Clean slate: drop all existing content tables and recreate with the new schema.
 User accounts (`public.users`) are preserved.
 
@@ -140,7 +123,6 @@ User accounts (`public.users`) are preserved.
 7. Apply new RLS policies
 
 ## Scope Exclusions (YAGNI)
-
 - No folder move/rearrange endpoint in v1 (can be added later)
 - No sharing or collaboration features
 - No folder-level metadata (description, color, icon) in v1
