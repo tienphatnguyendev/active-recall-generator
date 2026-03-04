@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     const { data: artifacts, error: fetchError } = await supabase
       .from('artifacts')
       .select('id, title, source_hash, created_at, cards(id, question, answer, judge_score)')
-      .eq('user_id', user.id);
+      
 
     if (fetchError) {
       console.error('Error fetching artifacts for export:', fetchError);
