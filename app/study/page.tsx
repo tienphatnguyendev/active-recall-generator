@@ -48,7 +48,6 @@ export default async function StudyPage() {
   return (
     <div className="min-h-screen bg-background">
       <Nav />
-      {/* @ts-expect-error Update to StudyClient props pending in next task */}
       <StudyClient cardsByBook={cardsByBook} />
     </div>
   );
