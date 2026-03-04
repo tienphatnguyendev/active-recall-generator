@@ -108,12 +108,18 @@ export function usePipelineOrchestrator() {
         // Reset stages for new chunk (except for the very first one)
         if (i > 0) setStages(DEFAULT_STAGES);
 
+        // Extract chunk title from the first header, or fallback to Chunk N
+        const match = chunks[i].match(/^#{1,2}\s+(.+)$/m);
+        let chunkTitle = match ? match[1].trim() : `Chunk ${i + 1}`;
+        // Clean up any trailing # symbols if present
+        chunkTitle = chunkTitle.replace(/\s+#+$/, "");
+
         await new Promise<void>((resolve, reject) => {
           resolveRef.current = resolve;
           rejectRef.current = reject;
           connect({
             markdown: chunks[i],
-            title: `${bookName} - ${chapterName}`,
+            title: `${bookName} - ${chapterName} - ${chunkTitle}`,
             force_refresh: forceRefresh,
           });
         });
