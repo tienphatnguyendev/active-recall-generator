@@ -74,6 +74,22 @@ export function ArtifactsClient({ artifacts }: { artifacts: Artifact[] }) {
   const [selectedId, setSelectedId] = useState<string | null>(artifacts[0]?.id || null);
   const [expandedPairs, setExpandedPairs] = useState<Set<number>>(new Set());
   const [search, setSearch] = useState("");
+  const [expandedBooks, setExpandedBooks] = useState<Set<string>>(
+    new Set([artifacts[0]?.book || 'Untitled'])
+  );
+  const [bookSearch, setBookSearch] = useState("");
+
+  const bookGroups = artifacts.reduce<Record<string, typeof artifacts[0][]>>((acc, a) => {
+    const key = a.book || 'Untitled';
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(a);
+    return acc;
+  }, {});
+
+  const filteredBooks = Object.keys(bookGroups).filter(b =>
+    b.toLowerCase().includes(bookSearch.toLowerCase())
+  );
+
   // Determine if we're simulating a loading state based on external props
   // but since we fetch server-side, it's immediately available
   const isLoading = false; 
@@ -114,50 +130,90 @@ export function ArtifactsClient({ artifacts }: { artifacts: Artifact[] }) {
   return (
     <div className="grid grid-cols-1 gap-6 md:grid-cols-3 lg:grid-cols-4">
         {/* Sidebar: artifact list */}
-        <div className="space-y-2 md:col-span-1">
-        <p className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            {isLoading ? "Loading..." : `${artifacts.length} artifacts`}
-        </p>
-        {isLoading ? (
+        <div className="space-y-4 md:col-span-1">
+          <div>
+            <p className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              {isLoading ? "Loading..." : `${artifacts.length} artifacts`}
+            </p>
+            <input
+              type="text"
+              value={bookSearch}
+              onChange={(e) => setBookSearch(e.target.value)}
+              placeholder="Filter books..."
+              className="w-full border border-border bg-input py-1.5 px-3 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring mb-3"
+            />
+          </div>
+
+          {isLoading ? (
             <div className="space-y-2">
-            {Array.from({ length: 3 }).map((_, i) => (
+              {Array.from({ length: 3 }).map((_, i) => (
                 <Skeleton key={i} className="h-20" />
-            ))}
+              ))}
             </div>
-        ) : (
-            artifacts.map((artifact) => (
-            <button
-                key={artifact.id}
-                onClick={() => {
-                setSelectedId(artifact.id);
-                setExpandedPairs(new Set());
-                setSearch("");
-                }}
-                className={cn(
-                "w-full border border-border p-3 text-left transition-colors relative group",
-                selectedId === artifact.id
-                    ? "border-l-[3px] border-l-primary bg-primary/5"
-                    : "bg-card hover:bg-surface"
-                )}
-            >
-                <p className="font-mono text-xs text-muted-foreground">
-                {artifact.source}
-                </p>
-                <p className="mt-0.5 text-sm font-medium text-foreground text-balance">
-                {artifact.section}
-                </p>
-                <div className="mt-2 flex items-center gap-2">
-                <span className="font-mono text-[10px] text-muted-foreground">
-                    {artifact.qaPairs?.length || 0} Q&A
-                </span>
-                <span className="text-muted-foreground/30">·</span>
-                <span className="font-mono text-[10px] text-muted-foreground">
-                    {new Date(artifact.createdAt).toLocaleDateString()}
-                </span>
-                </div>
-            </button>
-            ))
-        )}
+          ) : (
+            <div className="space-y-2">
+              {filteredBooks.map((bookName) => {
+                const bookArtifacts = bookGroups[bookName];
+                const isExpanded = expandedBooks.has(bookName);
+                const totalQA = bookArtifacts.reduce((sum, a) => sum + (a.qaPairs?.length || 0), 0);
+
+                return (
+                  <div key={bookName} className="border border-border bg-card">
+                    <button
+                      onClick={() => {
+                        setExpandedBooks(prev => {
+                          const next = new Set(prev);
+                          next.has(bookName) ? next.delete(bookName) : next.add(bookName);
+                          return next;
+                        });
+                      }}
+                      className="flex w-full items-center justify-between p-3 text-left hover:bg-surface transition-colors"
+                    >
+                      <div>
+                        <p className="text-sm font-semibold text-foreground truncate max-w-[180px]">{bookName}</p>
+                        <p className="font-mono text-[10px] text-muted-foreground mt-0.5">
+                          {bookArtifacts.length} chapters · {totalQA} Q&A
+                        </p>
+                      </div>
+                      <svg
+                        className={cn("text-muted-foreground transition-transform shrink-0", isExpanded && "rotate-180")}
+                        width="14" height="14" viewBox="0 0 14 14" fill="none"
+                      >
+                        <path d="M3 5L7 9L11 5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </button>
+                    {isExpanded && (
+                      <div className="border-t border-border flex flex-col">
+                        {bookArtifacts.map((artifact) => (
+                          <button
+                            key={artifact.id}
+                            onClick={() => {
+                              setSelectedId(artifact.id);
+                              setExpandedPairs(new Set());
+                              setSearch("");
+                            }}
+                            className={cn(
+                              "w-full border-b border-border last:border-b-0 p-3 text-left transition-colors relative group",
+                              selectedId === artifact.id
+                                ? "border-l-[3px] border-l-primary bg-primary/5 pl-[9px]"
+                                : "bg-card hover:bg-surface"
+                            )}
+                          >
+                            <p className="mt-0.5 text-xs font-medium text-foreground text-balance">
+                              {artifact.chapter}
+                            </p>
+                            <p className="font-mono text-[10px] text-muted-foreground mt-1">
+                              {artifact.qaPairs?.length || 0} Q&A
+                            </p>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Main: artifact detail */}
