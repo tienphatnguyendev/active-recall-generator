@@ -29,7 +29,9 @@ export default async function RootLayout({
   children: React.ReactNode;
 }) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { session } } = await supabase.auth.getSession();
+  const user = session?.user ?? null;
+  const accessToken = session?.access_token ?? null;
 
   return (
     <html lang="en">
@@ -37,7 +39,7 @@ export default async function RootLayout({
         className={`${inter.variable} ${jetbrainsMono.variable} font-sans min-h-screen bg-background`}
         suppressHydrationWarning
       >
-        <AuthProvider user={user}>
+        <AuthProvider user={user} accessToken={accessToken}>
           {children}
         </AuthProvider>
       </body>
