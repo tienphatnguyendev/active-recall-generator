@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import { AuthProvider } from "@/components/auth/auth-context";
+import { PipelineProvider } from "@/components/pipeline/pipeline-context";
 import { createClient } from "@/utils/supabase/server";
 import "./globals.css";
 
@@ -40,9 +41,12 @@ export default async function RootLayout({
         suppressHydrationWarning
       >
         <AuthProvider user={user} accessToken={accessToken}>
-          {children}
+          <PipelineProvider>
+            {children}
+          </PipelineProvider>
         </AuthProvider>
       </body>
     </html>
   );
 }
+

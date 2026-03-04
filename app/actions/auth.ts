@@ -1,7 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import { loginSchema, registerSchema } from "@/lib/validations/auth";
 
@@ -26,8 +24,7 @@ export async function login(formData: FormData) {
     return { error: error.message };
   }
 
-  revalidatePath("/", "layout");
-  redirect("/");
+  return { success: true };
 }
 
 export async function register(formData: FormData) {
@@ -57,8 +54,7 @@ export async function register(formData: FormData) {
     return { error: error.message };
   }
 
-  revalidatePath("/", "layout");
-  redirect("/");
+  return { success: true };
 }
 
 export async function logout() {
@@ -69,6 +65,5 @@ export async function logout() {
     return { error: error.message };
   }
 
-  revalidatePath("/", "layout");
-  redirect("/login");
+  return { success: true };
 }
