@@ -39,6 +39,7 @@ TIER_CONFIGS: Dict[str, List[dict]] = {
             "env_key": "GROQ_API_KEYS",
             "fallback_env": "GROQ_API_KEY",
             "tpm": 30_000,
+            "supports_json_schema": False,
         },
         {
             "provider": "groq",
@@ -46,6 +47,7 @@ TIER_CONFIGS: Dict[str, List[dict]] = {
             "env_key": "GROQ_API_KEYS",
             "fallback_env": "GROQ_API_KEY",
             "tpm": 30_000,
+            "supports_json_schema": False,
         },
     ],
     "reasoning": [
@@ -130,6 +132,49 @@ class TokenTracker:
 
 # Global tracker instance
 tracker = TokenTracker()
+
+
+class ProviderCircuitBreaker:
+    """Tracks provider failures and temporarily disables unhealthy providers."""
+
+    def __init__(self, failure_threshold: int = 2, reset_timeout: int = 60):
+        self.failure_threshold = failure_threshold
+        self.reset_timeout = reset_timeout
+        self.failures: Dict[str, int] = {}
+        self.last_failure_time: Dict[str, float] = {}
+
+    def record_failure(self, provider_id: str):
+        """Record a failure for a provider."""
+        self.failures[provider_id] = self.failures.get(provider_id, 0) + 1
+        self.last_failure_time[provider_id] = time.time()
+        logger.warning(
+            f"Circuit breaker recorded failure for {provider_id} "
+            f"({self.failures[provider_id]}/{self.failure_threshold})"
+        )
+
+    def record_success(self, provider_id: str):
+        """Reset the failure count on a successful call."""
+        if provider_id in self.failures and self.failures[provider_id] > 0:
+            logger.info(f"Circuit breaker reset for {provider_id}")
+        self.failures[provider_id] = 0
+
+    def is_allowed(self, provider_id: str) -> bool:
+        """Check if a provider is allowed to be used."""
+        num_failures = self.failures.get(provider_id, 0)
+        if num_failures < self.failure_threshold:
+            return True
+            
+        last_failure = self.last_failure_time.get(provider_id, 0.0)
+        if time.time() - last_failure > self.reset_timeout:
+            # Half-open state: allow a retry to see if it recovered
+            return True
+            
+        return False
+
+
+# Global circuit breaker instance
+circuit_breaker = ProviderCircuitBreaker()
+
 
 
 class TieredLLMFactory:
@@ -225,13 +270,6 @@ def _is_permanent_error(exc: Exception) -> bool:
     )
 
 
-@retry(
-    retry=retry_if_exception_type((Exception,)),
-    wait=wait_exponential(multiplier=1, min=4, max=60),
-    stop=stop_after_attempt(3),
-    before_sleep=before_sleep_log(logger, logging.WARNING),
-    reraise=True,
-)
 def _invoke_single_outlines(
     model, prompt: str, schema: BaseModel, config: dict, token_estimate: int = 500
 ):
@@ -277,67 +315,59 @@ def invoke_outlines_with_backoff(
     token_estimate: int = 500,
     tier: str = "reasoning",
 ):
-    """Invoke an Outlines model with provider-level fallback."""
+    """Invoke an Outlines model with fast-fail provider-level fallback using a circuit breaker."""
     last_exc: Exception | None = None
     tried_providers: list[str] = []
 
-    # Get initial model
-    model, config = _factory.get_outlines_model(tier)
-    label = f"{config['provider']}:{config['model']}"
-    tried_providers.append(label)
-
-    try:
-        return _invoke_single_outlines(
-            model, prompt, schema, config, token_estimate=token_estimate
-        )
-    except Exception as exc:
-        last_exc = exc
-        if not _is_permanent_error(exc):
-            logger.warning(f"Provider {label} exhausted retries: {exc}")
-        else:
-            logger.warning(f"Permanent error from {label}, skipping retries: {exc}")
-
-    # Fallback to other providers
     configs = TIER_CONFIGS.get(tier, [])
-    for fallback_config in configs:
-        fallback_label = f"{fallback_config['provider']}:{fallback_config['model']}"
-        if fallback_label in tried_providers:
+    if not configs:
+        raise RuntimeError(f"No configurations found for tier '{tier}'")
+        
+    # Attempt to call all configs sequentially (fast failover)
+    for offset in range(len(configs)):
+        idx = (_factory._tier_indices[tier] + offset) % len(configs)
+        config = configs[idx]
+        
+        provider_id = f"{config['provider']}:{config['model']}"
+        if provider_id in tried_providers:
+            continue
+            
+        if not circuit_breaker.is_allowed(provider_id):
+            logger.warning(f"Skipping {provider_id} (circuit breaker open)")
             continue
 
-        keys = _factory._get_keys(fallback_config)
+        keys = _factory._get_keys(config)
         if not keys:
             continue
-
+            
         try:
-            fallback_api_key = _factory._next_key(fallback_config["env_key"], keys)
-
-            base_url = ""
-            if fallback_config["provider"] == "groq":
-                base_url = "https://api.groq.com/openai/v1"
-            elif fallback_config["provider"] == "cerebras":
-                base_url = "https://api.cerebras.ai/v1"
-
-            fallback_client = openai.OpenAI(
-                base_url=base_url,
-                api_key=fallback_api_key,
+            api_key = _factory._next_key(config["env_key"], keys)
+            base_url = "https://api.groq.com/openai/v1" if config["provider"] == "groq" else "https://api.cerebras.ai/v1"
+            
+            client = openai.OpenAI(base_url=base_url, api_key=api_key)
+            model = outlines.from_openai(client, config["model"])
+            
+            tried_providers.append(provider_id)
+            logger.info(f"[LLM Factory] Try {offset+1} tier={tier} → {provider_id}")
+            
+            result = _invoke_single_outlines(
+                model, prompt, schema, config, token_estimate=token_estimate
             )
-            fallback_model = outlines.from_openai(
-                fallback_client, fallback_config["model"]
-            )
-            tried_providers.append(fallback_label)
-            logger.info(f"[Fallback] Trying {fallback_label}")
-
-            return _invoke_single_outlines(
-                fallback_model, prompt, schema, fallback_config, token_estimate=token_estimate
-            )
+            
+            circuit_breaker.record_success(provider_id)
+            # Advance index on success to round-robin
+            _factory._tier_indices[tier] = (idx + 1) % len(configs)
+            return result
+            
         except Exception as exc:
             last_exc = exc
             if _is_permanent_error(exc):
-                logger.warning(
-                    f"[Fallback] Permanent error from {fallback_label}: {exc}"
-                )
+                logger.warning(f"Permanent error from {provider_id}: {exc}")
+                # We do not mark circuit breaker for permanent credentials/not-found issues 
+                # to not mask configuration errors, but we do skip it for this round
             else:
-                logger.warning(f"[Fallback] {fallback_label} exhausted retries: {exc}")
+                logger.warning(f"Error from {provider_id}: {exc}")
+                circuit_breaker.record_failure(provider_id)
 
     raise RuntimeError(
         f"All providers exhausted for tier '{tier}'. "

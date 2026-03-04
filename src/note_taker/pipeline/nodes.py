@@ -169,13 +169,13 @@ def judge_node(state: GraphState) -> dict:
         for i, qa in enumerate(state["artifact"].qa_pairs)
     )
 
-    prompt = f"System: {JUDGE_SYSTEM_PROMPT}\n\nUser: Source:\n{state['source_content']}\n\nQ&A Pairs:\n{qa_text}"
+    prompt = f"System: {JUDGE_SYSTEM_PROMPT}\n\nUser: Q&A Pairs:\n{qa_text}"
 
     response = invoke_outlines_with_backoff(
         prompt=prompt,
         schema=JudgeVerdict,
         token_estimate=1500,
-        tier="fast",
+        tier="reasoning",
     )
 
     artifact = state["artifact"]

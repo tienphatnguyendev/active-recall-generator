@@ -37,40 +37,44 @@ def _make_rate_limit_error() -> RateLimitError:
         body={"error": {"message": "rate limit exceeded"}},
     )
 
-@patch("time.sleep")
-@patch("note_taker.llm._factory.get_outlines_model")
-def test_invoke_outlines_with_backoff_retries_on_rate_limit(mock_get_model, mock_sleep):
-    """invoke_outlines_with_backoff should retry on failure and eventually succeed."""
-    expected_result = MagicMock()
-    mock_model = MagicMock()
+@patch("note_taker.llm._invoke_single_outlines")
+@patch("note_taker.llm.openai.OpenAI")
+@patch("note_taker.llm.outlines.from_openai")
+def test_invoke_outlines_with_backoff_rotates_providers_on_failure(mock_from_openai, mock_openai, mock_invoke):
+    """invoke_outlines_with_backoff should rotate providers on failure."""
+    from pydantic import BaseModel
+    class Dummy(BaseModel): pass
 
-    # Fail twice with a 429, then succeed.
-    mock_model.side_effect = [
-        _make_rate_limit_error(),
+    expected_result = MagicMock()
+    # Fail first time, succeed second time
+    mock_invoke.side_effect = [
         _make_rate_limit_error(),
         expected_result,
     ]
     
-    mock_get_model.return_value = (mock_model, {"provider": "groq", "model": "test"})
-
-    from pydantic import BaseModel
-    class Dummy(BaseModel): pass
-
-    result = invoke_outlines_with_backoff("prompt", Dummy, token_estimate=100)
-
+    # Reset tier indices and circuit breaker
+    from note_taker.llm import _factory, circuit_breaker
+    _factory.reset()
+    circuit_breaker.failures.clear()
+    
+    result = invoke_outlines_with_backoff("prompt", Dummy, token_estimate=100, tier="fast")
+    
     assert result is expected_result
-    assert mock_model.call_count == 3
-
-@patch("time.sleep")
-@patch("note_taker.llm._factory.get_outlines_model")
-def test_invoke_outlines_with_backoff_raises_after_max_attempts(mock_get_model, mock_sleep):
-    """invoke_outlines_with_backoff should re-raise after exhausting all retry attempts."""
-    mock_model = MagicMock()
-    mock_model.side_effect = _make_rate_limit_error()
-    mock_get_model.return_value = (mock_model, {"provider": "groq", "model": "test"})
-
+    assert mock_invoke.call_count == 2
+    
+@patch("note_taker.llm._invoke_single_outlines")
+@patch("note_taker.llm.openai.OpenAI")
+@patch("note_taker.llm.outlines.from_openai")
+def test_invoke_outlines_with_backoff_raises_after_all_fail(mock_from_openai, mock_openai, mock_invoke):
+    """invoke_outlines_with_backoff should raise after all providers fail."""
     from pydantic import BaseModel
     class Dummy(BaseModel): pass
 
-    with pytest.raises(Exception):
-        invoke_outlines_with_backoff("prompt", Dummy, token_estimate=100)
+    mock_invoke.side_effect = _make_rate_limit_error()
+    
+    from note_taker.llm import _factory, circuit_breaker
+    _factory.reset()
+    circuit_breaker.failures.clear()
+
+    with pytest.raises(RuntimeError, match="All providers exhausted"):
+        invoke_outlines_with_backoff("prompt", Dummy, token_estimate=100, tier="fast")
