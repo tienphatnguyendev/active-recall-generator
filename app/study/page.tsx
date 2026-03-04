@@ -25,21 +25,31 @@ export default async function StudyPage() {
     );
   }
 
-  // Flatten the cards from all artifacts into the format StudyClient expects
-  const initialCards = (rawArtifacts || []).flatMap((artifact) =>
-    (artifact.cards || []).map((card: { id: string; question: string; answer: string; source_context: string | null; judge_score: number | null }) => ({
-      id: card.id || Math.random().toString(36), // fallback id just in case
+  // Group cards by book name derived from parseArtifactDisplay
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const cardsByBook = (rawArtifacts || []).reduce<Record<string, any[]>>((acc, artifact) => {
+    const { book, source } = parseArtifactDisplay(artifact.title, artifact.source_hash);
+    const key = book || 'All';
+    if (!acc[key]) acc[key] = [];
+    
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const mappedCards = (artifact.cards || []).map((card: any) => ({
+      id: card.id || Math.random().toString(36),
       question: card.question,
       answer: card.answer,
-      source: parseArtifactDisplay(artifact.title, artifact.source_hash).source,
+      source: source,
       judgeScore: card.judge_score || 0.85,
-    }))
-  );
+    }));
+    
+    acc[key].push(...mappedCards);
+    return acc;
+  }, {});
 
   return (
     <div className="min-h-screen bg-background">
       <Nav />
-      <StudyClient initialCards={initialCards} />
+      {/* @ts-expect-error Update to StudyClient props pending in next task */}
+      <StudyClient cardsByBook={cardsByBook} />
     </div>
   );
 }

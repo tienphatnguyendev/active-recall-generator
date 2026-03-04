@@ -30,8 +30,10 @@ function ProgressBar({ value, max }: { value: number; max: number }) {
   );
 }
 
-export function StudyClient({ initialCards }: { initialCards: (QAPair & { id: string })[] }) {
-  const [cards] = useState<(QAPair & { id: string })[]>(initialCards);
+export function StudyClient({ cardsByBook }: { cardsByBook: Record<string, (QAPair & { id: string })[]> }) {
+  const allBooks = Object.keys(cardsByBook);
+  const [selectedBook, setSelectedBook] = useState<string | null>(null);
+  const [cards, setCards] = useState<(QAPair & { id: string })[]>([]);
   const [sessionStarted, setSessionStarted] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
@@ -74,6 +76,50 @@ export function StudyClient({ initialCards }: { initialCards: (QAPair & { id: st
   const unsure = results.filter((r) => r.rating === "unsure").length;
   const unknown = results.filter((r) => r.rating === "unknown").length;
 
+  if (!selectedBook) {
+    const totalCardsAll = Object.values(cardsByBook).reduce((acc, arr) => acc + arr.length, 0);
+
+    return (
+      <main className="mx-auto max-w-3xl px-4 sm:px-6 py-8 sm:py-10">
+        <div className="mb-10 border-l-4 border-primary pl-5">
+          <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-primary">
+            Study Setup
+          </p>
+          <h1 className="text-balance text-3xl font-bold tracking-tight text-foreground">
+            Which book do you want to study?
+          </h1>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <button
+            onClick={() => {
+              setSelectedBook('All Books');
+              setCards(Object.values(cardsByBook).flat());
+            }}
+            className="flex flex-col items-start p-5 border border-border bg-card hover:border-primary hover:bg-primary/5 transition-colors text-left"
+          >
+            <p className="text-sm font-semibold text-foreground">All Books</p>
+            <p className="font-mono text-xs text-muted-foreground mt-2">{totalCardsAll} cards due</p>
+          </button>
+          
+          {allBooks.map((book) => (
+            <button
+              key={book}
+              onClick={() => {
+                setSelectedBook(book);
+                setCards(cardsByBook[book] || []);
+              }}
+              className="flex flex-col items-start p-5 border border-border bg-card hover:border-primary hover:bg-primary/5 transition-colors text-left"
+            >
+              <p className="text-sm font-semibold text-foreground truncate w-full">{book}</p>
+              <p className="font-mono text-xs text-muted-foreground mt-2">{cardsByBook[book].length} cards due</p>
+            </button>
+          ))}
+        </div>
+      </main>
+    );
+  }
+
   if (!sessionStarted) {
     return (
       <main className="mx-auto max-w-7xl px-4 sm:px-6 py-8 sm:py-10">
@@ -94,7 +140,9 @@ export function StudyClient({ initialCards }: { initialCards: (QAPair & { id: st
           <div className="border border-border bg-card p-6 lg:col-span-2">
             <div className="mb-6 flex items-start justify-between">
               <div>
-                <p className="text-sm font-semibold text-foreground">All artifacts</p>
+                <p className="text-sm font-semibold text-foreground">
+                  {selectedBook === 'All Books' ? 'All artifacts' : selectedBook}
+                </p>
                 <p className="mt-1 text-xs text-muted-foreground">
                   {`${cards.length} cards across ${new Set(cards.map((c) => c.source)).size} sources`}
                 </p>
@@ -211,12 +259,22 @@ export function StudyClient({ initialCards }: { initialCards: (QAPair & { id: st
             })}
           </div>
 
-          <div className="mt-6 flex gap-3">
+          <div className="mt-6 flex flex-col sm:flex-row gap-3">
             <button
               onClick={startSession}
               className="flex-1 bg-primary py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
             >
               Study again
+            </button>
+            <button
+              onClick={() => {
+                setSelectedBook(null);
+                setSessionDone(false);
+                setSessionStarted(false);
+              }}
+              className="flex-1 border border-border py-2.5 text-center text-sm font-medium text-foreground transition-colors hover:bg-surface"
+            >
+              Change Book
             </button>
             <a
               href="/artifacts"

@@ -46,17 +46,26 @@ def test_token_tracker_wait_if_needed(mock_time, mock_sleep):
     assert mock_sleep.called
     assert tracker.get_current_usage() == 0
 
-def test_invoke_outlines_with_backoff_tracks_usage():
+@patch('note_taker.llm.openai.OpenAI')
+@patch('note_taker.llm.outlines.from_openai')
+def test_invoke_outlines_with_backoff_tracks_usage(mock_from_openai, mock_openai, monkeypatch):
+    monkeypatch.setenv("GROQ_API_KEYS", "test_key")
+    monkeypatch.setenv("CEREBRAS_API_KEYS", "test_key")
+    
     with patch('note_taker.llm.tracker') as mock_tracker:
-        with patch('note_taker.llm._factory.get_outlines_model') as mock_factory:
-            mock_model = MagicMock()
-            mock_factory.return_value = (mock_model, {"provider": "groq", "model": "test"})
-            mock_model.return_value = "response"
-            
-            from pydantic import BaseModel
-            class Dummy(BaseModel): pass
+        mock_model = MagicMock()
+        mock_from_openai.return_value = mock_model
+        mock_model.return_value = "{}"
+        
+        from pydantic import BaseModel
+        class Dummy(BaseModel): pass
 
-            invoke_outlines_with_backoff("input", Dummy, token_estimate=500)
-            
-            mock_tracker.wait_if_needed.assert_called_with(500)
-            mock_tracker.add_usage.assert_called_with(500)
+        # Reset tier indices and circuit breaker
+        from note_taker.llm import _factory, circuit_breaker
+        _factory.reset()
+        circuit_breaker.failures.clear()
+
+        invoke_outlines_with_backoff("input", Dummy, token_estimate=500, tier="fast")
+        
+        mock_tracker.wait_if_needed.assert_called_with(500)
+        mock_tracker.add_usage.assert_called_with(500)

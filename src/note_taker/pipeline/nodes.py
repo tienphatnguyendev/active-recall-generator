@@ -52,10 +52,10 @@ Rules:
 - source_context should be the relevant sentence(s) from the source text.
 - The outline should have level 1 for main topics and level 2 for subtopics."""
 
-OUTLINE_SYSTEM_PROMPT = """You are an expert educator planning a study session.
-Given a section of a textbook, generate a 2-level hierarchical outline of the key concepts.
-Level 1 should cover main topics. Level 2 should cover detailed subtopics.
-This outline will be used to generate active recall questions."""
+OUTLINE_SYSTEM_PROMPT = """Extract a 2-level outline from the text below.
+Level 1 = main topics (typically section headings).
+Level 2 = key facts or concepts under each topic.
+Output ONLY the outline items, nothing else."""
 
 def outline_draft_node(state: GraphState) -> dict:
     """Generate a hierarchical outline from source content."""
@@ -66,7 +66,7 @@ def outline_draft_node(state: GraphState) -> dict:
     response = invoke_outlines_with_backoff(
         prompt=prompt,
         schema=OutlineResponse,
-        token_estimate=1000,
+        token_estimate=400,
         tier="fast",
     )
 
@@ -128,8 +128,8 @@ def qa_draft_node(state: GraphState) -> dict:
     response = invoke_outlines_with_backoff(
         prompt=prompt,
         schema=QADraftResponse,
-        token_estimate=1200,  # reduced from 2000; eases TokenTracker throttle pressure
-        tier="fast",          # was "reasoning" (gpt-oss-120b, avg 47s) → now fast (llama3.1-8b, ~3-5s)
+        token_estimate=600,
+        tier="fast",
     )
 
     # Convert LLM items to internal items
@@ -150,15 +150,20 @@ def qa_draft_node(state: GraphState) -> dict:
     
     return {"artifact": artifact}
 
-JUDGE_SYSTEM_PROMPT = """You are a strict educational content reviewer.
-Evaluate each question-answer pair on three criteria (score 0.0 to 1.0):
-- accuracy_score: Is the answer factually correct based on the source?
-- clarity_score: Is the question clear and unambiguous?
-- recall_worthiness_score: Does this question test genuine understanding?
-- overall_score: Weighted average of the three scores.
+JUDGE_SYSTEM_PROMPT = """Score each Q&A pair. Be strict — do NOT give high scores to vague or trivial items.
 
-Provide specific feedback for questions scoring below 0.7 on any criterion.
-Reference questions by their index (0-based)."""
+Criteria (0.0–1.0 each):
+- accuracy_score: answer is factually correct per the source
+- clarity_score: question is clear and unambiguous
+- recall_worthiness_score: question tests understanding, not just a yes/no or trivial fact
+- overall_score: average of the three
+
+Examples:
+- Q: "What drives evaporation?" A: "Solar heating converts liquid water to vapor." → overall 0.9
+- Q: "What is evaporation?" A: "Water goes up." → overall 0.4 (vague, incomplete)
+- Q: "Is water wet?" A: "Yes." → overall 0.2 (trivial)
+
+Provide feedback for any pair scoring below 0.8. Reference by index (0-based)."""
 
 def judge_node(state: GraphState) -> dict:
     """Score each Q&A pair on accuracy, clarity, and recall-worthiness."""
@@ -169,12 +174,12 @@ def judge_node(state: GraphState) -> dict:
         for i, qa in enumerate(state["artifact"].qa_pairs)
     )
 
-    prompt = f"System: {JUDGE_SYSTEM_PROMPT}\n\nUser: Source:\n{state['source_content']}\n\nQ&A Pairs:\n{qa_text}"
+    prompt = f"System: {JUDGE_SYSTEM_PROMPT}\n\nUser: Q&A Pairs:\n{qa_text}"
 
     response = invoke_outlines_with_backoff(
         prompt=prompt,
         schema=JudgeVerdict,
-        token_estimate=1500,
+        token_estimate=800,
         tier="fast",
     )
 
@@ -188,11 +193,14 @@ def judge_node(state: GraphState) -> dict:
 
     return {"artifact": artifact}
 
-REVISE_SYSTEM_PROMPT = """You are an expert educator revising study materials based on feedback.
-Given original source content and a list of question-answer pairs that need improvement,
-rewrite the Q&A pairs to address the provided feedback.
-Maintain the exact required JSON structure for the output.
-Ensure the revised questions test genuine understanding and the answers are accurate based on the source context."""
+REVISE_SYSTEM_PROMPT = """Rewrite the failing Q&A pairs to fix the issues in the feedback.
+
+Field contract (same as original):
+- question: single sentence; tests a concept from the source; self-contained
+- answer: 1–3 sentences; accurate per the source
+- source_context: ≤ 2 verbatim sentences from the source supporting the answer
+
+Keep pairs that are fine. Fix only what the feedback criticizes."""
 
 def revise_node(state: GraphState) -> dict:
     """Rewrite Q&A pairs that scored < 0.7 based on feedback."""
@@ -201,7 +209,7 @@ def revise_node(state: GraphState) -> dict:
     artifact = state["artifact"]
     failing_indices = [
         i for i, qa in enumerate(artifact.qa_pairs)
-        if qa.judge_score is None or qa.judge_score < 0.7
+        if qa.judge_score is None or qa.judge_score < 0.8
     ]
 
     if not failing_indices:
@@ -219,8 +227,8 @@ def revise_node(state: GraphState) -> dict:
     response = invoke_outlines_with_backoff(
         prompt=prompt,
         schema=RevisionResponse,
-        token_estimate=1500,
-        tier="reasoning",
+        token_estimate=600,
+        tier="fast",
     )
 
     # Replace the failing pairs with the revised ones (mapping sequentially for now)

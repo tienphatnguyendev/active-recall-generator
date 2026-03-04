@@ -43,3 +43,5 @@ npm-debug.log
 yarn-error.log
 package-lock.json
 .vercel
+
+scripts/benchmark_results.json
