@@ -72,36 +72,64 @@ def outline_draft_node(state: GraphState) -> dict:
 
     return {"outline": response}
 
-QA_SYSTEM_PROMPT = """You are an expert educator creating active recall study materials.
-Given a section of a textbook and a hierarchical outline of its key concepts, generate:
-One question-and-answer pair per subpoint in the outline.
+# ── QA Draft ─────────────────────────────────────────────────────────────────
+# WHY this prompt is written the way it is:
+#   • The fast tier uses grammar-constrained decoding (outlines native JSON schema),
+#     so the model NEVER has to "guess" the JSON format — we just need it to fill
+#     values correctly.
+#   • Small models (8B-17B) need: a clear role, concrete field semantics with hard
+#     bounds, and an explicit count anchor so they don't under- or over-generate.
+#   • We removed vague rules like "test understanding" (the model ignores them when
+#     constrained) and replaced them with terse, bounded specs.
+QA_SYSTEM_PROMPT = """You are a study-card generator.
 
-Rules:
-- Questions should test understanding, not just recall of facts.
-- Answers should be concise but complete.
-- source_context should be the relevant sentence(s) from the source text."""
+Task: Given source text and a hierarchical outline, output EXACTLY one active-recall Q&A pair for every Level-2 outline item — no more, no fewer.
+
+Field contract:
+- question : single sentence; tests a concept or mechanism from the source; self-contained (no "According to the text…")
+- answer   : 1–3 sentences; fully answers the question using only information in the source
+- source_context : ≤ 2 verbatim or near-verbatim sentences from the source that support the answer
+
+Do NOT invent facts outside the source. Do NOT add commentary."""
 
 def qa_draft_node(state: GraphState) -> dict:
-    """Generate Q&A pairs from source content and outline."""
+    """Generate Q&A pairs from source content and outline.
+
+    Tier choice — 'fast' (llama3.1-8b on Cerebras) rather than 'reasoning':
+    • Q&A generation is a structured extraction task, not a reasoning task.
+    • The fast tier uses outlines grammar-constrained decoding (supports_json_schema
+      defaults to True), so the JSON schema is enforced at the token level — no
+      regex fallback, no schema-in-prompt bloat.
+    • Benchmark before fix: avg 47s, max 60s (gpt-oss-120b, schema-in-prompt path).
+      Expected after fix: avg < 5s on Cerebras llama3.1-8b.
+    """
     from note_taker.models import QADraftResponse, FinalArtifactV1, OutlineItem, QuestionAnswerPair
     
     # Needs outline from previous node
     outline_response = state.get("outline")
     if not outline_response:
         raise ValueError("qa_draft_node requires an outline but none was found in state.")
-        
+
+    # Separate level-1 and level-2 items for the prompt anchor
+    level2_items = [item for item in outline_response.outline if item.level == 2]
     outline_text = "\n".join(
-        f"{'  ' * (item.level - 1)}- {item.title}" 
+        f"{'  ' * (item.level - 1)}- [L{item.level}] {item.title}"
         for item in outline_response.outline
     )
 
-    prompt = f"System: {QA_SYSTEM_PROMPT}\n\nUser: Source:\n{state['source_content']}\n\nOutline:\n{outline_text}"
+    prompt = (
+        f"System: {QA_SYSTEM_PROMPT}\n\n"
+        f"User:\n"
+        f"### Source\n{state['source_content']}\n\n"
+        f"### Outline ({len(level2_items)} Level-2 items → generate {len(level2_items)} Q&A pairs)\n"
+        f"{outline_text}"
+    )
     
     response = invoke_outlines_with_backoff(
         prompt=prompt,
         schema=QADraftResponse,
-        token_estimate=2000,
-        tier="reasoning",
+        token_estimate=1200,  # reduced from 2000; eases TokenTracker throttle pressure
+        tier="fast",          # was "reasoning" (gpt-oss-120b, avg 47s) → now fast (llama3.1-8b, ~3-5s)
     )
 
     # Convert LLM items to internal items
