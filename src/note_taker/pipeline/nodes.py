@@ -157,8 +157,13 @@ Evaluate each question-answer pair on three criteria (score 0.0 to 1.0):
 - recall_worthiness_score: Does this question test genuine understanding?
 - overall_score: Weighted average of the three scores.
 
-Provide specific feedback for questions scoring below 0.7 on any criterion.
-Reference questions by their index (0-based)."""
+Provide specific feedback for questions scoring below 0.8 on any criterion.
+Reference questions by their index (0-based).
+
+### Calibration Examples:
+GOOD (0.9): Q: "What drives evaporation?" A: "Solar heating converts liquid water to vapor from surface bodies." -> High: accurate, clear, tests understanding.
+MEDIOCRE (0.5): Q: "What is evaporation?" A: "It's when water goes up." -> Low: vague question, incomplete answer.
+BAD (0.2): Q: "Is water wet?" A: "Yes." -> Very low: trivial, no recall value."""
 
 def judge_node(state: GraphState) -> dict:
     """Score each Q&A pair on accuracy, clarity, and recall-worthiness."""
@@ -175,7 +180,7 @@ def judge_node(state: GraphState) -> dict:
         prompt=prompt,
         schema=JudgeVerdict,
         token_estimate=1500,
-        tier="reasoning",
+        tier="fast",
     )
 
     artifact = state["artifact"]
@@ -201,7 +206,7 @@ def revise_node(state: GraphState) -> dict:
     artifact = state["artifact"]
     failing_indices = [
         i for i, qa in enumerate(artifact.qa_pairs)
-        if qa.judge_score is None or qa.judge_score < 0.7
+        if qa.judge_score is None or qa.judge_score < 0.8
     ]
 
     if not failing_indices:

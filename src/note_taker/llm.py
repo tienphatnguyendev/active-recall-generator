@@ -344,7 +344,7 @@ def invoke_outlines_with_backoff(
             api_key = _factory._next_key(config["env_key"], keys)
             base_url = "https://api.groq.com/openai/v1" if config["provider"] == "groq" else "https://api.cerebras.ai/v1"
             
-            client = openai.OpenAI(base_url=base_url, api_key=api_key)
+            client = openai.OpenAI(base_url=base_url, api_key=api_key, timeout=10.0)
             model = outlines.from_openai(client, config["model"])
             
             tried_providers.append(provider_id)

@@ -28,7 +28,7 @@ def should_continue(state: GraphState) -> str:
 
     failing_pairs = [
         qa for qa in artifact.qa_pairs 
-        if qa.judge_score is None or qa.judge_score < 0.7
+        if qa.judge_score is None or qa.judge_score < 0.8
     ]
 
     if failing_pairs:

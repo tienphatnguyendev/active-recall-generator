@@ -78,3 +78,32 @@ def test_invoke_outlines_with_backoff_raises_after_all_fail(mock_from_openai, mo
 
     with pytest.raises(RuntimeError, match="All providers exhausted"):
         invoke_outlines_with_backoff("prompt", Dummy, token_estimate=100, tier="fast")
+
+@patch("note_taker.llm._invoke_single_outlines")
+@patch("note_taker.llm.openai.OpenAI")
+@patch("note_taker.llm.outlines.from_openai")
+def test_invoke_outlines_with_backoff_handles_timeout(mock_from_openai, mock_openai, mock_invoke):
+    """invoke_outlines_with_backoff should rotate providers when APITimeoutError occurs."""
+    from pydantic import BaseModel
+    from openai import APITimeoutError
+    
+    class Dummy(BaseModel): pass
+
+    mock_request = MagicMock()
+    timeout_error = APITimeoutError(request=mock_request)
+    expected_result = MagicMock()
+    
+    # Fail first time with timeout, succeed second time
+    mock_invoke.side_effect = [
+        timeout_error,
+        expected_result,
+    ]
+    
+    from note_taker.llm import _factory, circuit_breaker
+    _factory.reset()
+    circuit_breaker.failures.clear()
+    
+    result = invoke_outlines_with_backoff("prompt", Dummy, token_estimate=100, tier="fast")
+    
+    assert result is expected_result
+    assert mock_invoke.call_count == 2
