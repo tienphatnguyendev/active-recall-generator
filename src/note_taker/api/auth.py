@@ -47,7 +47,8 @@ def _get_jwk_client() -> PyJWKClient:
     """Get or create a JWK client for the current Supabase project."""
     url = _get_jwks_url()
     if url not in _jwk_clients:
-        _jwk_clients[url] = PyJWKClient(url)
+        # Cache keys for 5 minutes (300 seconds) to handle rotation seamlessly
+        _jwk_clients[url] = PyJWKClient(url, cache_keys=True, cache_jwk_set=True, lifespan=300)
     return _jwk_clients[url]
 
 
@@ -83,7 +84,17 @@ def get_current_user(
         else:
             # Use asymmetric JWKS (RS256, ES256, etc.)
             jwk_client = _get_jwk_client()
-            signing_key = jwk_client.get_signing_key_from_jwt(token)
+            try:
+                signing_key = jwk_client.get_signing_key_from_jwt(token)
+            except jwt.exceptions.PyJWKClientError:
+                # If key not found, clear the cache and try exactly once more
+                # This handles key rotation gracefully if the cache is stale
+                fallback_url = _get_jwks_url()
+                if fallback_url in _jwk_clients:
+                    del _jwk_clients[fallback_url]
+                jwk_client = _get_jwk_client()
+                signing_key = jwk_client.get_signing_key_from_jwt(token)
+
             payload = jwt.decode(
                 token,
                 signing_key.key,
