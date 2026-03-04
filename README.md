@@ -1,12 +1,26 @@
-# note-taker
+# Active Recall Generator (Note Taker)
 
-A CLI tool that transforms **Markdown textbook chapters** into **active recall Q&A artifacts**, stored in SQLite. It uses a LangGraph state machine with a **Draft → Judge → Revise** feedback loop powered by Groq's `llama-3.3-70b-versatile`.
+A full-stack web application that transforms **Markdown textbook chapters** into **active recall Q&A artifacts**. Designed to enhance study sessions, it uses a sophisticated LangGraph state machine with a **Draft → Judge → Revise** feedback loop powered by Groq's `llama-3.3-70b-versatile`.
 
-## Architecture Overview
+## ✨ Key Features & Achievements
 
+- **Full-Stack Architecture**: Modern Next.js (App Router) frontend paired with a robust FastAPI backend.
+- **AI-Powered Processing Pipeline**: Uses LangGraph to orchestrate a multi-agent workflow (Draft → Judge → Revise) ensuring high-quality, accurate Q&A generation from source text.
+- **Real-Time Execution**: Server-Sent Events (SSE) provide real-time streaming updates to the frontend during pipeline execution.
+- **Interactive UI/UX**:
+  - Drag-and-drop file upload for Markdown documents.
+  - 3-part artifact hierarchy (Source Document → Outline View → Q&A Pairs).
+  - Chapter management system for organizing study materials.
+- **Secure Authentication**: Hardened Supabase authentication flow, supporting symmetric and asymmetric JWT validation, eager client-side token initialization, and robust middleware protection.
+- **Cloud Database**: Fully integrated with Supabase PostgreSQL for persistent, scalable storage of users, documents, outlines, and Q&A artifacts.
+- **Deployed Infrastructure**: Frontend hosted on Vercel, Backend hosted on Render.
+
+## 🏗 Architecture Overview
+
+### Backend Pipeline (LangGraph)
 ```mermaid
 graph TD
-    A["CLI (Typer)"] --> B["parse_markdown_chunks()"]
+    A["API Endpoint (SSE)"] --> B["parse_markdown_chunks()"]
     B --> C["For each chunk"]
     C --> D["graph.invoke(initial_state)"]
     D --> E["check_database_node"]
@@ -20,75 +34,70 @@ graph TD
     H --> Z
 ```
 
-## Tech Stack
+### Tech Stack
 
 | Component | Technology |
 |-----------|-----------|
-| CLI | Typer |
-| LLM | Groq (`llama-3.3-70b-versatile`) |
+| Frontend | Next.js 15, React 19, Tailwind CSS, shadcn/ui |
+| Backend API | FastAPI, Uvicorn, SSE-Starlette |
+| AI / LLM | Groq (`llama-3.3-70b-versatile`), Langchain |
 | State Machine | LangGraph |
-| Database | SQLite with `sqlite-utils` |
-| Data Validation | Pydantic |
+| Database & Auth | Supabase (PostgreSQL), `@supabase/ssr` |
+| Data Validation | Pydantic (Backend), Zod (Frontend) |
 
-## Project Structure
+## 🚀 Setup & Local Development
 
-```
-src/note_taker/
-├── config.py          # DB_PATH config (env-overridable)
-├── models.py          # Pydantic models: FinalArtifactV1, DraftResponse, JudgeVerdict, etc.
-├── processing.py      # Markdown chunking (H1/H2 splits, code-fence aware)
-├── database.py        # Singleton DatabaseManager (SQLite CRUD)
-├── llm.py             # get_llm() → ChatGroq client
-├── cli.py             # Typer `process` command
-└── pipeline/
-    ├── state.py       # GraphState (TypedDict)
-    ├── nodes.py       # check_database, draft, judge, revise, save_to_db nodes
-    └── graph.py       # build_graph() → compiled StateGraph
-```
+This project uses `uv` for Python dependency management and `pnpm` for Node.js dependency management.
 
-## Pipeline Nodes
-
-| Node | What it does |
-|------|-------------|
-| `check_database_node` | Hashes content, checks DB. Sets `skip_processing=True` if unchanged. |
-| `draft_node` | Calls LLM with `DraftResponse` structured output → creates `FinalArtifactV1` |
-| `judge_node` | Calls LLM with `JudgeVerdict` structured output → scores each Q&A (0.0–1.0) |
-| `revise_node` | Finds pairs with `judge_score < 0.7`, calls LLM → replaces them (max 3 cycles) |
-| `save_to_db_node` | Persists `artifact` to SQLite via `DatabaseManager.save_artifact()` |
-
-## Data Models
-
-| Model | Role |
-|-------|------|
-| `QuestionAnswerPair` | One Q&A unit: `question`, `answer`, `source_context`, optional `judge_score`/`judge_feedback` |
-| `OutlineItem` | Recursive tree node: `title`, `level`, nested `items` |
-| `FinalArtifactV1` | Root container stored in DB: `source_hash`, `outline[]`, `qa_pairs[]` |
-| `DraftResponse` | Structured output schema for the **draft** LLM call |
-| `JudgeVerdict` | Structured output schema for the **judge** LLM call |
-| `RevisionResponse` | Structured output schema for the **revise** LLM call |
-
-## Setup
-
+### Backend (FastAPI)
 ```bash
-# Create and activate virtual environment
-uv venv && source .venv/bin/activate
+# Initialize and activate the virtual environment
+uv venv
+source .venv/bin/activate
 
 # Install dependencies
 uv pip install -e .
+
+# Run the backend development server
+uv run uvicorn note_taker.api.main:app --reload --port 8000
 ```
 
-## Usage
-
+### Frontend (Next.js)
 ```bash
-python main.py "BookName:ChapterX" path/to/chapter.md
+# Install dependencies
+pnpm install
+
+# Run the frontend development server
+pnpm dev
 ```
 
-Options:
-- `--force-refresh` — Re-process all chunks even if unchanged
+## 🔒 Environment Variables
 
-## Development Sandbox
+You will need the following environment variables configured:
 
-Notebooks in `notebooks/` use the `%load` bridge pattern:
-- `.py` files in `src/` are the **single source of truth**
-- `.ipynb` templates are used as a **scratchpad/debugger**
-- Use `%load` to inspect and execute code step-by-step
+**Frontend (`.env.local`)**:
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `NEXT_PUBLIC_API_URL` (points to local or deployed FastAPI backend)
+
+**Backend (`.env`)**:
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `SUPABASE_JWT_SECRET`
+- `GROQ_API_KEY`
+- `CORS_ORIGINS`
+
+## 🧠 Data Models
+
+| Model | Role |
+|-------|------|
+| `QuestionAnswerPair` | One Q&A unit: `question`, `answer`, `source_context`, `judge_score`, `judge_feedback` |
+| `OutlineItem` | Recursive tree node: `title`, `level`, nested `items` |
+| `FinalArtifactV1` | Root container stored in DB: `source_hash`, `outline[]`, `qa_pairs[]` |
+
+## 🧪 Testing
+
+The backend includes a comprehensive `pytest` suite simulating pipeline workflows and authentication validation.
+```bash
+uv run pytest
+```
