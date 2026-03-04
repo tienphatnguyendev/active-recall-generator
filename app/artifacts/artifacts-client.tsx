@@ -75,14 +75,19 @@ export function ArtifactsClient({ artifacts }: { artifacts: Artifact[] }) {
   const [expandedPairs, setExpandedPairs] = useState<Set<number>>(new Set());
   const [search, setSearch] = useState("");
   const [expandedBooks, setExpandedBooks] = useState<Set<string>>(
-    new Set([artifacts[0]?.book || 'Untitled'])
+    new Set([artifacts[0]?.book || "Untitled Book"])
+  );
+  const [expandedChapters, setExpandedChapters] = useState<Set<string>>(
+    new Set([`${artifacts[0]?.book || "Untitled Book"}::${artifacts[0]?.chapter || "Untitled Chapter"}`])
   );
   const [bookSearch, setBookSearch] = useState("");
 
-  const bookGroups = artifacts.reduce<Record<string, typeof artifacts[0][]>>((acc, a) => {
-    const key = a.book || 'Untitled';
-    if (!acc[key]) acc[key] = [];
-    acc[key].push(a);
+  const bookGroups = artifacts.reduce<Record<string, Record<string, typeof artifacts[0][]>>>((acc, a) => {
+    const book = a.book || "Untitled Book";
+    const chapter = a.chapter || "Untitled Chapter";
+    if (!acc[book]) acc[book] = {};
+    if (!acc[book][chapter]) acc[book][chapter] = [];
+    acc[book][chapter].push(a);
     return acc;
   }, {});
 
@@ -153,15 +158,21 @@ export function ArtifactsClient({ artifacts }: { artifacts: Artifact[] }) {
           ) : (
             <div className="space-y-2">
               {filteredBooks.map((bookName) => {
-                const bookArtifacts = bookGroups[bookName];
+                const chapters = bookGroups[bookName];
                 const isExpanded = expandedBooks.has(bookName);
-                const totalQA = bookArtifacts.reduce((sum, a) => sum + (a.qaPairs?.length || 0), 0);
+                const totalChapters = Object.keys(chapters).length;
+                let totalQA = 0;
+                Object.values(chapters).forEach((ch) => {
+                  ch.forEach((a) => {
+                    totalQA += a.qaPairs?.length || 0;
+                  });
+                });
 
                 return (
                   <div key={bookName} className="border border-border bg-card">
                     <button
                       onClick={() => {
-                        setExpandedBooks(prev => {
+                        setExpandedBooks((prev) => {
                           const next = new Set(prev);
                           next.has(bookName) ? next.delete(bookName) : next.add(bookName);
                           return next;
@@ -170,43 +181,115 @@ export function ArtifactsClient({ artifacts }: { artifacts: Artifact[] }) {
                       className="flex w-full items-center justify-between p-3 text-left hover:bg-surface transition-colors"
                     >
                       <div>
-                        <p className="text-sm font-semibold text-foreground truncate max-w-[180px]">{bookName}</p>
+                        <p className="text-sm font-semibold text-foreground truncate max-w-[180px]">
+                          {bookName}
+                        </p>
                         <p className="font-mono text-[10px] text-muted-foreground mt-0.5">
-                          {bookArtifacts.length} chapters · {totalQA} Q&A
+                          {totalChapters} chapters · {totalQA} Q&A
                         </p>
                       </div>
                       <svg
-                        className={cn("text-muted-foreground transition-transform shrink-0", isExpanded && "rotate-180")}
-                        width="14" height="14" viewBox="0 0 14 14" fill="none"
+                        className={cn(
+                          "text-muted-foreground transition-transform shrink-0",
+                          isExpanded && "rotate-180"
+                        )}
+                        width="14"
+                        height="14"
+                        viewBox="0 0 14 14"
+                        fill="none"
                       >
-                        <path d="M3 5L7 9L11 5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                        <path
+                          d="M3 5L7 9L11 5"
+                          stroke="currentColor"
+                          strokeWidth="1.2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
                       </svg>
                     </button>
                     {isExpanded && (
-                      <div className="border-t border-border flex flex-col">
-                        {bookArtifacts.map((artifact) => (
-                          <button
-                            key={artifact.id}
-                            onClick={() => {
-                              setSelectedId(artifact.id);
-                              setExpandedPairs(new Set());
-                              setSearch("");
-                            }}
-                            className={cn(
-                              "w-full border-b border-border last:border-b-0 p-3 text-left transition-colors relative group",
-                              selectedId === artifact.id
-                                ? "border-l-[3px] border-l-primary bg-primary/5 pl-[9px]"
-                                : "bg-card hover:bg-surface"
-                            )}
-                          >
-                            <p className="mt-0.5 text-xs font-medium text-foreground text-balance">
-                              {artifact.chapter}
-                            </p>
-                            <p className="font-mono text-[10px] text-muted-foreground mt-1">
-                              {artifact.qaPairs?.length || 0} Q&A
-                            </p>
-                          </button>
-                        ))}
+                      <div className="border-t border-border flex flex-col pl-3">
+                        {Object.keys(chapters).map((chapterName) => {
+                          const chapterArtifacts = chapters[chapterName];
+                          const chapterKey = `${bookName}::${chapterName}`;
+                          const isChapterExpanded = expandedChapters.has(chapterKey);
+                          const chapterQA = chapterArtifacts.reduce(
+                            (sum, a) => sum + (a.qaPairs?.length || 0),
+                            0
+                          );
+
+                          return (
+                            <div
+                              key={chapterName}
+                              className="border-b border-border last:border-b-0 flex flex-col"
+                            >
+                              <button
+                                onClick={() => {
+                                  setExpandedChapters((prev) => {
+                                    const next = new Set(prev);
+                                    next.has(chapterKey)
+                                      ? next.delete(chapterKey)
+                                      : next.add(chapterKey);
+                                    return next;
+                                  });
+                                }}
+                                className="flex w-full items-center justify-between p-2.5 text-left hover:bg-surface transition-colors"
+                              >
+                                <div>
+                                  <p className="text-xs font-semibold text-foreground truncate max-w-[170px]">
+                                    {chapterName}
+                                  </p>
+                                  <p className="font-mono text-[10px] text-muted-foreground mt-0.5">
+                                    {chapterArtifacts.length} sections · {chapterQA} Q&A
+                                  </p>
+                                </div>
+                                <svg
+                                  className={cn(
+                                    "text-muted-foreground transition-transform shrink-0",
+                                    isChapterExpanded && "rotate-180"
+                                  )}
+                                  width="12"
+                                  height="12"
+                                  viewBox="0 0 14 14"
+                                  fill="none"
+                                >
+                                  <path
+                                    d="M3 5L7 9L11 5"
+                                    stroke="currentColor"
+                                    strokeWidth="1.2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  />
+                                </svg>
+                              </button>
+
+                              {isChapterExpanded && (
+                                <div className="border-t border-border border-l flex flex-col ml-1 bg-surface/50">
+                                  {chapterArtifacts.map((artifact) => (
+                                    <button
+                                      key={artifact.id}
+                                      onClick={() => {
+                                        setSelectedId(artifact.id);
+                                        setExpandedPairs(new Set());
+                                        setSearch("");
+                                      }}
+                                      className={cn(
+                                        "w-full border-b border-border last:border-b-0 p-2.5 text-left transition-colors relative group",
+                                        selectedId === artifact.id
+                                          ? "bg-primary/10 border-l-[2px] border-primary pl-2.5"
+                                          : "hover:bg-surface border-l-[2px] border-transparent pl-2.5"
+                                      )}
+                                    >
+                                      <p className="text-xs font-medium text-foreground text-balance line-clamp-2">
+                                        {artifact.section}
+                                      </p>
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </div>

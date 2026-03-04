@@ -5,6 +5,8 @@ import { useAuth } from "@/components/auth/auth-context";
 import { PipelineStatus } from "@/components/pipeline-status";
 import { usePipelineOrchestrator } from "@/hooks/use-pipeline-orchestrator";
 import { SAMPLE_MARKDOWN } from "@/lib/constants/pipeline";
+import { useCallback } from "react";
+import { useDropzone } from "react-dropzone";
 
 export default function GeneratePage() {
   const { isAuthenticated } = useAuth();
@@ -24,6 +26,36 @@ export default function GeneratePage() {
     handleSubmit,
     handleReset,
   } = usePipelineOrchestrator();
+
+  const onDrop = useCallback(
+    (acceptedFiles: File[]) => {
+      const file = acceptedFiles[0];
+      if (file) {
+        const nameWithoutExtension = file.name.replace(/\.[^/.]+$/, "");
+        setChapterName(nameWithoutExtension);
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const text = e.target?.result;
+          if (typeof text === "string") {
+            setMarkdown(text);
+          }
+        };
+        reader.readAsText(file);
+      }
+    },
+    [setChapterName, setMarkdown]
+  );
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: {
+      "text/markdown": [".md"],
+      "text/plain": [".txt"],
+    },
+    maxFiles: 1,
+    disabled: isRunning,
+  });
 
   return (
     <div className="min-h-screen bg-background">
@@ -90,32 +122,77 @@ export default function GeneratePage() {
               </div>
             </div>
 
-            {/* Markdown textarea */}
+            {/* Markdown input */}
             <div>
-              <div className="mb-1.5 flex items-center justify-between">
-                <label
-                  htmlFor="markdown-input"
-                  className="text-xs font-medium text-muted-foreground"
-                >
+              <div className="mb-2 flex items-center justify-between">
+                <label className="text-xs font-medium text-muted-foreground">
                   Markdown chapter
                 </label>
-                <button
-                  type="button"
-                  onClick={() => setMarkdown(SAMPLE_MARKDOWN)}
-                  className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-                >
-                  Load sample
-                </button>
+                <div className="flex items-center gap-3">
+                  {markdown && (
+                    <button
+                      type="button"
+                      onClick={() => setMarkdown("")}
+                      className="text-xs text-destructive underline-offset-2 hover:underline disabled:opacity-50"
+                      disabled={isRunning}
+                    >
+                      Clear
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setMarkdown(SAMPLE_MARKDOWN)}
+                    className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline disabled:opacity-50"
+                    disabled={isRunning}
+                  >
+                    Load sample
+                  </button>
+                </div>
               </div>
-              <textarea
-                id="markdown-input"
-                value={markdown}
-                onChange={(e) => setMarkdown(e.target.value)}
-                disabled={isRunning}
-                placeholder={"# Chapter Title\n\n## Section 1\n\nPaste your content here..."}
-                rows={18}
-                className="w-full resize-none border border-border bg-card px-4 py-3 font-mono text-sm leading-relaxed text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
-              />
+
+              {!markdown ? (
+                <div
+                  {...getRootProps()}
+                  className={`flex h-[400px] cursor-pointer flex-col items-center justify-center border border-dashed transition-colors ${
+                    isDragActive
+                      ? "border-primary bg-primary/5"
+                      : "border-border bg-card hover:border-primary/50 hover:bg-accent/50"
+                  } ${isRunning ? "pointer-events-none opacity-50" : ""}`}
+                >
+                  <input {...getInputProps()} />
+                  <div className="flex flex-col items-center justify-center p-6 text-center">
+                    <svg
+                      className="mb-4 h-10 w-10 text-muted-foreground"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="1.5"
+                        d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                      />
+                    </svg>
+                    <p className="mb-2 text-sm font-semibold text-foreground">
+                      {isDragActive ? "Drop file here" : "Click or drag to upload"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Markdown (.md) or Text (.txt)
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <textarea
+                  id="markdown-input"
+                  value={markdown}
+                  onChange={(e) => setMarkdown(e.target.value)}
+                  disabled={isRunning}
+                  placeholder="# Chapter Title\n\n## Section 1\n\nPaste your content here..."
+                  className="h-[400px] w-full resize-none border border-border bg-card px-4 py-3 font-mono text-sm leading-relaxed text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+                />
+              )}
             </div>
 
             {/* Options & submit */}
