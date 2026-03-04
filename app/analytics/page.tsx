@@ -29,9 +29,20 @@ export default async function AnalyticsPage() {
     supabase.rpc('get_mastery_distribution'),
   ]);
 
-  if (streakRes.error) console.error('Error fetching streak:', streakRes.error);
-  if (weeklyRes.error) console.error('Error fetching weekly activity:', weeklyRes.error);
-  if (masteryRes.error) console.error('Error fetching mastery distribution:', masteryRes.error);
+  const errors = [
+    streakRes.error && { rpc: 'get_user_streak', error: streakRes.error },
+    weeklyRes.error && { rpc: 'get_weekly_activity', error: weeklyRes.error },
+    masteryRes.error && { rpc: 'get_mastery_distribution', error: masteryRes.error },
+  ].filter(Boolean) as { rpc: string; error: { code?: string; message: string } }[];
+
+  errors.forEach(({ rpc, error }) => {
+    console.error(`[analytics] RPC ${rpc} failed`, {
+      code: error.code,
+      message: error.message,
+      hint: (error as any).hint,
+      details: (error as any).details,
+    });
+  });
 
   const analyticsData: AnalyticsData = {
     stats: [
@@ -88,9 +99,16 @@ export default async function AnalyticsPage() {
           <AnalyticsExportButton />
         </div>
 
-        {(streakRes.error || weeklyRes.error || masteryRes.error) && (
+        {errors.length > 0 && (
           <div className="mb-6 border-l-2 border-destructive bg-destructive/5 px-4 py-3 text-sm text-destructive">
-            Some analytics data could not be loaded. Please try again later.
+            <p className="font-medium">Some analytics data could not be loaded.</p>
+            {process.env.NODE_ENV === 'development' && (
+              <ul className="mt-2 space-y-1 font-mono text-xs opacity-80">
+                {errors.map(({ rpc, error }) => (
+                  <li key={rpc}>{rpc}: [{error.code}] {error.message}</li>
+                ))}
+              </ul>
+            )}
           </div>
         )}
 
