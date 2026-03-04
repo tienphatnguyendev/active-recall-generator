@@ -1,6 +1,7 @@
 import hashlib
 import time
 import json
+import logging
 import argparse
 import sys
 from pathlib import Path
@@ -13,6 +14,18 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from note_taker.pipeline.graph import build_graph
+
+# Enable logging to see provider selection & throttle waits
+logging.basicConfig(
+    level=logging.INFO,
+    format="  %(name)s | %(message)s",
+    stream=sys.stderr,
+)
+# Only show our logs, not noisy libraries
+logging.getLogger("note_taker").setLevel(logging.INFO)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("openai").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 SAMPLE_MARKDOWN = """# The Water Cycle
 
@@ -35,8 +48,20 @@ def run_benchmark(runs, force_refresh, title):
     graph = build_graph()
     results = []
 
+    expected_nodes = [
+        "check_database_node",
+        "outline_draft_node",
+        "qa_draft_node",
+        "judge_node",
+        "revise_node",
+        "save_to_db_node"
+    ]
+
     for run_idx in range(runs):
-        print(f"Run {run_idx + 1}/{runs}...")
+        print(f"\n{'='*60}", file=sys.stderr)
+        print(f"Run {run_idx + 1}/{runs}", file=sys.stderr)
+        print(f"{'='*60}", file=sys.stderr)
+
         chunk_id = hashlib.sha256(
             f"{title}:{SAMPLE_MARKDOWN[:200]}".encode()
         ).hexdigest()[:16]
@@ -60,26 +85,37 @@ def run_benchmark(runs, force_refresh, title):
         
         # Track node execution
         last_time = start_overall
+        last_state = initial_state
         for node_output in graph.stream(initial_state):
             current_time = time.perf_counter()
             duration = current_time - last_time
             
             # Extract node name (LangGraph yields {node_name: state_updates})
             node_name = list(node_output.keys())[0] if node_output else "unknown"
-            run_times[node_name] = duration
+            
+            # Accumulate time for nodes that repeat (judge_node in revision loop)
+            if node_name in run_times:
+                run_times[node_name] += duration
+            else:
+                run_times[node_name] = duration
             total_time += duration
             
+            # Log per-node detail
+            print(f"  {node_name}: {duration:.2f}s", file=sys.stderr)
+
+            # Log judge scores if available
+            if node_name == "judge_node":
+                state_update = node_output[node_name]
+                artifact = state_update.get("artifact")
+                if artifact:
+                    for i, qa in enumerate(artifact.qa_pairs):
+                        score_str = f"{qa.judge_score:.2f}" if qa.judge_score is not None else "N/A"
+                        fb = f" | {qa.judge_feedback}" if qa.judge_feedback else ""
+                        print(f"    [{i}] score={score_str}{fb}", file=sys.stderr)
+
             last_time = current_time
             
         # Also add missing expected nodes with 0.0 time if skipped
-        expected_nodes = [
-            "check_database_node",
-            "outline_draft_node",
-            "qa_draft_node",
-            "judge_node",
-            "revise_node",
-            "save_to_db_node"
-        ]
         for node in expected_nodes:
             if node not in run_times:
                 run_times[node] = 0.0
@@ -89,15 +125,17 @@ def run_benchmark(runs, force_refresh, title):
 
     # Aggregate results
     aggregated = {}
-    nodes = list(results[0].keys())
+    all_node_names = set()
+    for r in results:
+        all_node_names.update(r.keys())
     
     # Keep standard ordering + any extra nodes
-    ordered_nodes = expected_nodes + [n for n in nodes if n not in expected_nodes and n != "TOTAL"] + ["TOTAL"]
+    ordered_nodes = expected_nodes + [n for n in sorted(all_node_names) if n not in expected_nodes and n != "TOTAL"] + ["TOTAL"]
     
     for node in ordered_nodes:
-        if node not in nodes:
+        if node not in all_node_names:
             continue
-        times = [r[node] for r in results]
+        times = [r.get(node, 0.0) for r in results]
         aggregated[node] = {
             "min": min(times),
             "max": max(times),
@@ -110,7 +148,15 @@ def run_benchmark(runs, force_refresh, title):
     with open(out_path, "w") as f:
         json.dump(aggregated, f, indent=2)
 
-    # Print table
+    # Print per-run table
+    print(f"\n{'='*60}")
+    print("Per-Run Breakdown:")
+    print(f"{'='*60}")
+    for i, r in enumerate(results):
+        parts = [f"{n}={r.get(n, 0):.1f}s" for n in expected_nodes if r.get(n, 0) > 0]
+        print(f"  Run {i+1}: {' → '.join(parts)}  (TOTAL={r['TOTAL']:.1f}s)")
+
+    # Print aggregate table
     print()
     print("┌" + "─"*24 + "┬" + "─"*14 + "┬" + "─"*14 + "┬" + "─"*14 + "┐")
     print("│ {:<22} │ {:>12} │ {:>12} │ {:>12} │".format("Stage", "Min (s)", "Avg (s)", "Max (s)"))
