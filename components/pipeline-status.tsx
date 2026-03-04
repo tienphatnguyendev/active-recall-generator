@@ -1,17 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-
-type StageStatus = "idle" | "active" | "done" | "failed";
-
-interface PipelineStage {
-  id: string;
-  label: string;
-  description: string;
-  color: string;
-  status: StageStatus;
-  detail?: string;
-}
+import { StageStatus, PipelineStage } from "@/lib/constants/pipeline";
 
 interface PipelineStatusProps {
   stages: PipelineStage[];
@@ -159,41 +149,3 @@ export function PipelineStatus({
     </div>
   );
 }
-
-export const DEFAULT_STAGES: PipelineStage[] = [
-  {
-    id: "check",
-    label: "Check Database",
-    description: "Hash content and skip unchanged chunks",
-    color: "#a2aaad",
-    status: "idle",
-  },
-  {
-    id: "draft",
-    label: "Draft",
-    description: "Generate outline and Q&A pairs via LLM",
-    color: "#f3c13a",
-    status: "idle",
-  },
-  {
-    id: "judge",
-    label: "Judge",
-    description: "Score each Q&A on accuracy, clarity, recall-worthiness",
-    color: "#005eb8",
-    status: "idle",
-  },
-  {
-    id: "revise",
-    label: "Revise",
-    description: "Re-generate failing pairs (max 3 cycles)",
-    color: "#a2aaad",
-    status: "idle",
-  },
-  {
-    id: "save",
-    label: "Save to DB",
-    description: "Persist artifact to SQLite",
-    color: "#005eb8",
-    status: "idle",
-  },
-];
