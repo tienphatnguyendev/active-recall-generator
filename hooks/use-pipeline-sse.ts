@@ -56,6 +56,17 @@ interface UsePipelineSSEOptions {
  */
 export function usePipelineSSE({ onEvent, onClose }: UsePipelineSSEOptions) {
   const ctrlRef = useRef<AbortController | null>(null);
+  
+  const onEventRef = useRef(onEvent);
+  const onCloseRef = useRef(onClose);
+
+  useEventCallbackRefs();
+
+  function useEventCallbackRefs() {
+    onEventRef.current = onEvent;
+    onCloseRef.current = onClose;
+  }
+
 
   const connect = useCallback(
     async (request: GenerateRequest) => {
@@ -106,7 +117,7 @@ export function usePipelineSSE({ onEvent, onClose }: UsePipelineSSEOptions) {
             if (msg.event === "stage_update") {
               try {
                 const data = JSON.parse(msg.data) as SSEStageEvent;
-                onEvent({
+                onEventRef.current({
                   type: "stage",
                   stage: data.stage,
                   status: data.status,
@@ -118,22 +129,22 @@ export function usePipelineSSE({ onEvent, onClose }: UsePipelineSSEOptions) {
             } else if (msg.event === "complete") {
               try {
                 const data = JSON.parse(msg.data) as SSECompleteEvent;
-                onEvent({
+                onEventRef.current({
                   type: "complete",
                   artifact: data.artifact,
                   artifact_id: data.artifact_id,
                 });
                 ctrl.abort(); // Close after completion
-                onClose?.();
+                onCloseRef.current?.();
               } catch (e) {
                 console.error("Failed to parse complete data:", e);
               }
             } else if (msg.event === "error") {
               try {
                 const data = JSON.parse(msg.data) as SSEErrorEvent;
-                onEvent({ type: "error", message: data.message });
+                onEventRef.current({ type: "error", message: data.message });
                 ctrl.abort(); // Close after error
-                onClose?.();
+                onCloseRef.current?.();
               } catch (e) {
                 console.error("Failed to parse error data:", e);
               }
@@ -141,24 +152,24 @@ export function usePipelineSSE({ onEvent, onClose }: UsePipelineSSEOptions) {
           },
 
           onclose() {
-            onClose?.();
+            onCloseRef.current?.();
           },
 
           onerror(err) {
             // Log the error and rethrow to stop retrying unless it's an abort
             if (err.name === "AbortError") return;
             console.error("Pipeline SSE error:", err);
-            onEvent({ type: "error", message: "Connection lost." });
+            onEventRef.current({ type: "error", message: "Connection lost." });
             throw err;
           },
         });
       } catch (err: any) {
         if (err.name === "AbortError") return;
         console.error("Fetch Event Source failed:", err);
-        onEvent({ type: "error", message: err.message || "Pipeline connection failed." });
+        onEventRef.current({ type: "error", message: err.message || "Pipeline connection failed." });
       }
     },
-    [onEvent, onClose]
+    []
   );
 
   const disconnect = useCallback(() => {

@@ -30,8 +30,10 @@ export default async function RootLayout({
   children: React.ReactNode;
 }) {
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  // Attempt to get the session to grab access token if needed. Wait, in layout we can't easily get the access token from just getUser. We're using cookies.
+  // Actually, getUser() is sufficient for user check. But we need accessToken.
   const { data: { session } } = await supabase.auth.getSession();
-  const user = session?.user ?? null;
   const accessToken = session?.access_token ?? null;
 
   return (

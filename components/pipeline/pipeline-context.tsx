@@ -6,6 +6,7 @@ import {
   useState,
   useRef,
   useCallback,
+  useEffect,
   type ReactNode,
 } from "react";
 import { usePipelineSSE, PipelineEvent } from "@/hooks/use-pipeline-sse";
@@ -186,6 +187,14 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
     setQaCount(0);
     setError(null);
   };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      disconnect();
+    };
+  }, [disconnect]);
+
 
   return (
     <PipelineContext.Provider
