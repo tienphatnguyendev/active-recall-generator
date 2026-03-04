@@ -14,6 +14,10 @@ export default function LoginPage() {
       const result = await login(formData);
       if (result?.error) {
         setError(result.error);
+      } else if (result?.success) {
+        // Hard navigation to force a full SSR re-render with the new auth cookies.
+        // Soft navigation (router.push) would reuse the stale AuthProvider state.
+        window.location.href = "/";
       }
     });
   };

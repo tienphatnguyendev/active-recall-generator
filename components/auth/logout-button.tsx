@@ -13,7 +13,10 @@ export function LogoutButton({ className }: LogoutButtonProps) {
 
   const handleLogout = () => {
     startTransition(async () => {
-      await logout();
+      const result = await logout();
+      if (!result?.error) {
+        window.location.href = "/login";
+      }
     });
   };
 

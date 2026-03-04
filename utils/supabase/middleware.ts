@@ -47,8 +47,7 @@ export async function updateSession(request: NextRequest) {
   }
 
   // Redirect authenticated users away from auth pages (but not '/')
-  const isAuthRoute = publicRoutes.some(route => request.nextUrl.pathname.startsWith(route));
-  if (user && isAuthRoute) {
+  if (user && isPublicRoute) {
     const url = request.nextUrl.clone()
     url.pathname = '/'
     return NextResponse.redirect(url)

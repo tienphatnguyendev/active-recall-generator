@@ -50,9 +50,10 @@ export function AuthProvider({
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
-      // Ignore empty sessions on initialization or sign out if the server already provided a valid user
+      // Ignore empty sessions on initialization if the server already provided a valid user
       // This defends against HttpOnly cookie mismatches causing the client to think it's signed out
-      if (!session && initialUser && (event === "INITIAL_SESSION" || event === "SIGNED_OUT")) {
+      // We explicitly allow SIGNED_OUT to proceed to clear the state
+      if (!session && initialUser && event === "INITIAL_SESSION") {
         return;
       }
 

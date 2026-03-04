@@ -14,6 +14,8 @@ export default function RegisterPage() {
       const result = await register(formData);
       if (result?.error) {
         setError(result.error);
+      } else if (result?.success) {
+        window.location.href = "/";
       }
     });
   };

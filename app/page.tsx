@@ -3,7 +3,7 @@
 import { Nav } from "@/components/nav";
 import { useAuth } from "@/components/auth/auth-context";
 import { PipelineStatus } from "@/components/pipeline-status";
-import { usePipelineOrchestrator } from "@/hooks/use-pipeline-orchestrator";
+import { usePipeline } from "@/components/pipeline/pipeline-context";
 import { SAMPLE_MARKDOWN } from "@/lib/constants/pipeline";
 import { useCallback } from "react";
 import { useDropzone } from "react-dropzone";
@@ -25,7 +25,7 @@ export default function GeneratePage() {
     error,
     handleSubmit,
     handleReset,
-  } = usePipelineOrchestrator();
+  } = usePipeline();
 
   const onDrop = useCallback(
     (acceptedFiles: File[]) => {
