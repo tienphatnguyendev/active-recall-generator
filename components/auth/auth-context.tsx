@@ -29,6 +29,13 @@ export function AuthProvider({
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     );
 
+    // Eagerly fetch session on mount to set the token before the first event fires
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.access_token) {
+        setAccessToken(session.access_token);
+      }
+    });
+
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {

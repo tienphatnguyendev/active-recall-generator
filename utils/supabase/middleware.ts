@@ -50,7 +50,7 @@ export async function updateSession(request: NextRequest) {
   const isAuthRoute = publicRoutes.some(route => request.nextUrl.pathname.startsWith(route));
   if (user && isAuthRoute) {
     const url = request.nextUrl.clone()
-    url.pathname = '/artifacts'
+    url.pathname = '/'
     return NextResponse.redirect(url)
   }
 
