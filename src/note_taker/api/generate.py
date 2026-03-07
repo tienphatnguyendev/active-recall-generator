@@ -20,11 +20,13 @@ router = APIRouter()
 
 # Map LangGraph node names to user-friendly stage labels
 NODE_TO_STAGE = {
-    "check_database_node": "check",
-    "outline_draft_node": "outline_draft",
-    "qa_draft_node": "qa_draft",
-    "judge_node": "judge",
-    "revise_node": "revise",
+    "generate_outlines": "outline_scaffolding",
+    "synthesize_brief": "synthesize_brief",
+    "judge_brief": "judge_brief",
+    "revise_brief": "revise_brief",
+    "qa_draft": "qa_draft",
+    "judge_qa": "judge_qa",
+    "revise_qa": "revise_qa",
     "save_to_db_node": "save",
 }
 
@@ -33,31 +35,40 @@ def _serialize_node_output(node_name: str, output: dict) -> dict | None:
     """Extract serializable summary data from a node's state update."""
     if output is None:
         return {}
-    if node_name == "check_database_node":
-        return {"skip_processing": output.get("skip_processing", False)}
-    if node_name == "outline_draft_node":
-        outline = output.get("outline")
-        if outline and hasattr(outline, "outline"):
-            return {"item_count": len(outline.outline)}
+    if node_name == "generate_outlines":
+        outlines = output.get("chunk_outlines", [])
+        return {"chunks_outlined": len(outlines)}
+    if node_name == "synthesize_brief":
+        brief = output.get("mastery_brief")
+        if brief and hasattr(brief, "core_ideas"):
+            return {"ideas_extracted": len(brief.core_ideas)}
         return {}
-    if node_name in ("qa_draft_node", "judge_node", "revise_node"):
+    if node_name in ("judge_brief", "revise_brief"):
+        judgement = output.get("brief_judgement")
+        if judgement:
+            return {
+                "score": getattr(judgement, "overall_score", 0),
+                "revision_count": output.get("brief_revision_count", 0),
+            }
+        return {}
+    if node_name in ("qa_draft", "judge_qa", "revise_qa"):
         artifact = output.get("artifact")
         if artifact and hasattr(artifact, "qa_pairs"):
             failing = sum(
                 1 for qa in artifact.qa_pairs
-                if qa.judge_score is None or qa.judge_score < 0.7
+                if getattr(qa, "judge_score", None) is None or getattr(qa, "judge_score") < 0.8
             )
             return {
                 "qa_count": len(artifact.qa_pairs),
                 "failing_count": failing,
-                "revision_count": output.get("revision_count", 0),
+                "revision_count": output.get("qa_revision_count", 0),
             }
         return {}
     return {}
 
 
 def _artifact_to_dict(artifact) -> dict:
-    """Serialize a FinalArtifactV1 to a JSON-safe dict."""
+    """Serialize a FinalArtifactV2 to a JSON-safe dict."""
     return json.loads(artifact.model_dump_json())
 
 
@@ -72,13 +83,15 @@ async def _generate_events(
 
     initial_state = {
         "chunk_id": chunk_id,
-        "source_content": request.markdown,
-        "source_hash": "",
+        "source_chunks": [{"title": request.title, "content": request.markdown}],
+        "source_hash": chunk_id,
         "force_refresh": request.force_refresh,
+        "chunk_outlines": None,
+        "mastery_brief": None,
+        "brief_revision_count": 0,
         "artifact": None,
-        "outline": None,
+        "qa_revision_count": 0,
         "skip_processing": False,
-        "revision_count": 0,
         "persist_locally": False,  # API route persists to Supabase instead
     }
 
@@ -99,23 +112,6 @@ async def _generate_events(
                 # Track the latest artifact
                 if "artifact" in output and output["artifact"] is not None:
                     last_artifact = output["artifact"]
-
-                # Check if processing was skipped (cache hit)
-                if node_name == "check_database_node" and output.get("skip_processing"):
-                    if last_artifact is None and "artifact" in output:
-                        last_artifact = output["artifact"]
-
-                    yield {
-                        "event": "stage_update",
-                        "data": SSEStageEvent(
-                            stage=stage,
-                            status="skipped",
-                            data={"reason": "cached"},
-                        ).model_dump_json(),
-                    }
-
-                    # Fallthrough to completion if we have an artifact
-                    break
 
                 # Normal stage completion
                 summary = _serialize_node_output(node_name, output)

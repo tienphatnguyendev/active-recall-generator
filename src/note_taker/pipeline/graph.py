@@ -1,79 +1,77 @@
 from langgraph.graph import StateGraph, START, END
 from note_taker.pipeline.state import GraphState
 from note_taker.pipeline.nodes import (
-    check_database_node,
-    outline_draft_node,
-    qa_draft_node,
-    judge_node,
-    revise_node,
-    save_to_db_node
+    generate_outlines,
+    synthesize_brief,
+    judge_brief,
+    revise_brief,
+    qa_draft,
+    judge_qa,
+    revise_qa,
+    save_to_db_node,
 )
 
-MAX_REVISIONS = 3
+MAX_BRIEF_REVISIONS = 3
+MAX_QA_REVISIONS = 3
 
-def should_continue(state: GraphState) -> str:
-    """Determine the next step in the pipeline."""
-    if state.get("skip_processing"):
-        return END
+def should_continue_brief(state: GraphState) -> str:
+    """Route after judge_brief: pass -> qa_draft, fail -> revise_brief (up to limit)."""
+    if state.get("brief_revision_count", 0) >= MAX_BRIEF_REVISIONS:
+        return "qa_draft"
 
-    # If we've reached the revision limit, force a save
-    if state.get("revision_count", 0) >= MAX_REVISIONS:
+    judgement = state.get("brief_judgement")
+    if judgement and judgement.overall_score >= 0.8:
+        return "qa_draft"
+
+    return "revise_brief"
+
+
+def should_continue_qa(state: GraphState) -> str:
+    """Route after judge_qa: pass -> save_to_db_node, fail -> revise_qa (up to limit)."""
+    if state.get("qa_revision_count", 0) >= MAX_QA_REVISIONS:
         return "save_to_db_node"
 
-    # Check if any Q&A pairs failed the judgment
     artifact = state.get("artifact")
     if not artifact:
-        # Should not happen because judge_node should always create/pass artifact
-        return END
+        return "save_to_db_node"
 
-    failing_pairs = [
-        qa for qa in artifact.qa_pairs 
-        if qa.judge_score is None or qa.judge_score < 0.8
-    ]
+    failing = [qa for qa in artifact.qa_pairs if qa.judge_score is None or qa.judge_score < 0.8]
+    if failing:
+        return "revise_qa"
 
-    if failing_pairs:
-        return "revise_node"
-    
     return "save_to_db_node"
+
 
 def build_graph() -> StateGraph:
     """Builds and returns the LangGraph StateGraph pipeline."""
     graph = StateGraph(GraphState)
 
-    # Add nodes
-    graph.add_node("check_database_node", check_database_node)
-    graph.add_node("outline_draft_node", outline_draft_node)
-    graph.add_node("qa_draft_node", qa_draft_node)
-    graph.add_node("judge_node", judge_node)
-    graph.add_node("revise_node", revise_node)
+    graph.add_node("generate_outlines", generate_outlines)
+    graph.add_node("synthesize_brief", synthesize_brief)
+    graph.add_node("judge_brief", judge_brief)
+    graph.add_node("revise_brief", revise_brief)
+    graph.add_node("qa_draft", qa_draft)
+    graph.add_node("judge_qa", judge_qa)
+    graph.add_node("revise_qa", revise_qa)
     graph.add_node("save_to_db_node", save_to_db_node)
 
-    # Set Entry Point
-    graph.add_edge(START, "check_database_node")
+    # Linear flow: START -> generate_outlines -> synthesize_brief -> judge_brief
+    graph.add_edge(START, "generate_outlines")
+    graph.add_edge("generate_outlines", "synthesize_brief")
+    graph.add_edge("synthesize_brief", "judge_brief")
 
-    # Routing from check_database_node
-    # If skip_processing is True, exit. Else, continue to outline_draft_node.
-    def check_db_router(state: GraphState) -> str:
-        if state.get("skip_processing"):
-            return END
-        return "outline_draft_node"
+    # Brief judge/revise loop
+    graph.add_conditional_edges("judge_brief", should_continue_brief)
+    graph.add_edge("revise_brief", "judge_brief")
 
-    graph.add_conditional_edges(
-        "check_database_node",
-        check_db_router
-    )
+    # QA flow: qa_draft -> judge_qa
+    graph.add_edge("qa_draft", "judge_qa")
 
-    # Linear flow
-    graph.add_edge("outline_draft_node", "qa_draft_node")
-    graph.add_edge("qa_draft_node", "judge_node")
+    # QA judge/revise loop
+    graph.add_conditional_edges("judge_qa", should_continue_qa)
+    graph.add_edge("revise_qa", "judge_qa")
 
-    # Routing from judge_node
-    graph.add_conditional_edges("judge_node", should_continue)
-
-    # Loop back
-    graph.add_edge("revise_node", "judge_node")
-
-    # End
+    # Exit
     graph.add_edge("save_to_db_node", END)
 
     return graph.compile()
