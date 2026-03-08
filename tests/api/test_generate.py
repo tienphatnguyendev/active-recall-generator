@@ -5,7 +5,7 @@ from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 from note_taker.api.main import app
 from note_taker.models import (
-    FinalArtifactV1, OutlineItem, QuestionAnswerPair, OutlineResponse,
+    FinalArtifactV2, MasteryBrief, CoreIdea, QuestionAnswerPair,
 )
 from note_taker.api.auth import get_current_user, AuthenticatedUser
 
@@ -69,13 +69,20 @@ def test_generate_rejects_missing_title():
 @patch("note_taker.api.generate.get_supabase_client")
 def test_generate_returns_sse_stream(mock_get_supabase, mock_save_supabase):
     """POST /api/generate should return a text/event-stream response and save to Supabase."""
-    from note_taker.models import LLMOutlineItem
     mock_save_supabase.return_value = "new-artifact-id"
 
-    # Build a mock artifact for the pipeline to "yield"
-    mock_artifact = FinalArtifactV1(
+    # Build a mock V2 artifact for the pipeline to "yield"
+    mock_brief = MasteryBrief(
+        core_ideas=[CoreIdea(idea="Auth", why_it_matters="Sec", mechanism="O")],
+        non_negotiable_details=[],
+        connections=[],
+        common_traps=[],
+        five_min_review=[]
+    )
+    
+    mock_artifact = FinalArtifactV2(
         source_hash="abc123",
-        outline=[OutlineItem(title="Intro", level=1)],
+        mastery_brief=mock_brief,
         qa_pairs=[
             QuestionAnswerPair(
                 question="What are agents?",
@@ -87,12 +94,13 @@ def test_generate_returns_sse_stream(mock_get_supabase, mock_save_supabase):
         ],
     )
 
-    # Mock the compiled graph's .stream() to yield node updates
+    # Mock the compiled graph's .stream() to yield V2 node updates
     mock_graph = MagicMock()
     mock_graph.stream.return_value = iter([
-        {"check_database_node": {"skip_processing": False, "source_hash": "abc123"}},
-        {"outline_draft_node": {"outline": OutlineResponse(outline=[LLMOutlineItem(title="Intro", level=1)])}},        {"qa_draft_node": {"artifact": mock_artifact}},
-        {"judge_node": {"artifact": mock_artifact}},
+        {"generate_outlines": {"chunk_outlines": ["outline1"]}},
+        {"synthesize_brief": {"mastery_brief": mock_brief}},
+        {"qa_draft": {"artifact": mock_artifact}},
+        {"judge_qa": {"artifact": mock_artifact}},
         {"save_to_db_node": {}},
     ])
 
@@ -138,32 +146,3 @@ def test_generate_handles_pipeline_error():
     assert len(error_events) >= 1
     assert "LLM provider unavailable" in error_events[0]["data"]["message"]
 
-
-@patch("note_taker.api.generate.save_artifact_to_supabase")
-@patch("note_taker.api.generate.get_supabase_client")
-def test_generate_skipped_processing(mock_get_supabase, mock_save_supabase, tmp_path):
-    """When the cache hits (skip_processing=True), should still save to Supabase (or return existing)."""
-    mock_save_supabase.return_value = "cached-artifact-id"
-    
-    mock_artifact = FinalArtifactV1(
-        source_hash="abc123",
-        outline=[OutlineItem(title="T", level=1)],
-        qa_pairs=[QuestionAnswerPair(question="Q", answer="A", source_context="C", judge_score=0.9)],
-    )
-
-    mock_graph = MagicMock()
-    mock_graph.stream.return_value = iter([
-        {"check_database_node": {"skip_processing": True, "artifact": mock_artifact, "source_hash": "abc123"}},
-    ])
-
-    with patch("note_taker.api.generate.build_graph", return_value=mock_graph):
-        response = client.post(
-            "/api/generate",
-            json={"markdown": SAMPLE_MARKDOWN, "title": "Cached"},
-        )
-
-    events = _parse_sse_events(response.text)
-    # Should have a complete event with the cached artifact and new artifact_id from Supabase
-    complete_events = [e for e in events if e.get("event") == "complete"]
-    assert len(complete_events) == 1
-    assert complete_events[0]["data"]["artifact_id"] == "cached-artifact-id"

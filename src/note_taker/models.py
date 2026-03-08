@@ -24,19 +24,18 @@ class QuestionAnswerPair(BaseModel):
     judge_score: Optional[float] = None
     judge_feedback: Optional[str] = None
 
-class OutlineItem(BaseModel):
-    """Represents a node in the hierarchical outline."""
+class LLMOutlineItem(BaseModel):
     title: str
     level: int
-    items: List["OutlineItem"] = Field(default_factory=list)
 
-class FinalArtifactV1(BaseModel):
-    """The root container for a processed chunk."""
-    version: int = 1
-    source_hash: str
-    outline: List[OutlineItem]
-    qa_pairs: List[QuestionAnswerPair]
-
+class OutlineResponse(BaseModel):
+    """LLM response from the outline draft node."""
+    outline: List[LLMOutlineItem]
+    
+    @model_validator(mode="before")
+    @classmethod
+    def parse_str_to_list(cls, data: Any) -> Any:
+        return _parse_embedded_json(data, "outline")
 
 # --- LLM Response Models (structured output from Groq) ---
 
@@ -49,28 +48,10 @@ class QAJudgement(BaseModel):
     overall_score: float = Field(ge=0.0, le=1.0)
     feedback: str
 
-class DraftResponse(BaseModel):
-    """LLM response from the draft node. Keeps qa_pairs for backward compatibility."""
-    outline: List[OutlineItem]
-    qa_pairs: List[QuestionAnswerPair]
-
-class LLMOutlineItem(BaseModel):
-    title: str
-    level: int
-
 class LLMQuestionAnswerPair(BaseModel):
     question: str
     answer: str
     source_context: str
-
-class OutlineResponse(BaseModel):
-    """LLM response from the outline draft node."""
-    outline: List[LLMOutlineItem]
-    
-    @model_validator(mode="before")
-    @classmethod
-    def parse_str_to_list(cls, data: Any) -> Any:
-        return _parse_embedded_json(data, "outline")
 
 class QADraftResponse(BaseModel):
     """LLM response from the QA draft node."""
@@ -98,3 +79,45 @@ class RevisionResponse(BaseModel):
     @classmethod
     def parse_str_to_list(cls, data: Any) -> Any:
         return _parse_embedded_json(data, "revised_pairs")
+
+# --- V2 Models: Mastery Brief Pipeline ---
+
+class CoreIdea(BaseModel):
+    """A single high-leverage concept from the chapter."""
+    idea: str                   # The concept, stated precisely
+    why_it_matters: str         # Why this idea is foundational/reusable/testable
+    mechanism: str              # How it works — the core logic, not just the label
+
+class MasteryBrief(BaseModel):
+    """The ultra-condensed 80/20 mastery brief for a chapter."""
+    core_ideas: List[CoreIdea]
+    non_negotiable_details: List[str]
+    connections: List[str]
+    common_traps: List[str]
+    five_min_review: List[str]
+
+class BriefJudgement(BaseModel):
+    """Judge's evaluation of the mastery brief."""
+    specificity_score: float = Field(ge=0.0, le=1.0)
+    density_score: float = Field(ge=0.0, le=1.0)
+    leverage_score: float = Field(ge=0.0, le=1.0)
+    anti_summary_score: float = Field(ge=0.0, le=1.0)
+    connections_score: float = Field(ge=0.0, le=1.0)
+    overall_score: float = Field(ge=0.0, le=1.0)
+    feedback: str
+
+class BriefRevisionResponse(BaseModel):
+    """LLM response from the brief revision node."""
+    revised_brief: MasteryBrief
+
+    @model_validator(mode="before")
+    @classmethod
+    def parse_str_to_obj(cls, data: Any) -> Any:
+        return _parse_embedded_json(data, "revised_brief")
+
+class FinalArtifactV2(BaseModel):
+    """The root container \u2014 brief-first, no outline exposed."""
+    version: int = 2
+    source_hash: str
+    mastery_brief: MasteryBrief
+    qa_pairs: List[QuestionAnswerPair]

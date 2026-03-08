@@ -52,52 +52,41 @@ def process(
         rprint("[yellow]No chunks found. Nothing to do.[/yellow]")
         raise typer.Exit(code=0)
 
-    # --- Process each chunk ---
+    # --- Process single chapter ---
     from note_taker.pipeline.graph import build_graph
     
     db = DatabaseManager()
     db.ensure_database()
     graph = build_graph()
 
-    skipped = 0
-    processed = 0
+    source_hash = _hash("".join(c["content"] for c in chunks))
 
-    for idx, chunk in enumerate(chunks):
-        chunk_id = f"{book_chapter}:{idx:03d}"
-        source_hash = _hash(chunk["content"])
+    if not force_refresh and db.check_hash(book_chapter, source_hash):
+        rprint(f"  [dim]> {book_chapter} - unchanged, skipping[/dim]")
+        raise typer.Exit(code=0)
 
-        if not force_refresh and db.check_hash(chunk_id, source_hash):
-            skipped += 1
-            rprint(f"  [dim]⏭  {chunk_id} — unchanged, skipping[/dim]")
-            continue
-
-        processed += 1
-        rprint(f"  [blue]🔄 {chunk_id}[/blue] — [bold]{chunk['title']}[/bold]")
-        
-        initial_state = {
-            "chunk_id": chunk_id,
-            "source_content": chunk["content"],
-            "source_hash": source_hash,
-            "force_refresh": bool(force_refresh),
-            "revision_count": 0,
-            "artifact": None,
-            "outline": None,
-            "skip_processing": False,
-        }
-        
-        try:
-            graph.invoke(initial_state)
-        except Exception as e:
-            rprint(f"  [red]❌ {chunk_id} failed: {e}[/red]")
-
-    # --- Summary ---
-    rprint()
-    rprint(
-        f"[green]Done.[/green]  "
-        f"Processed: [bold]{processed}[/bold]  |  "
-        f"Skipped: [bold]{skipped}[/bold]  |  "
-        f"Total: [bold]{len(chunks)}[/bold]"
-    )
+    rprint(f"  [blue]* {book_chapter}[/blue] - processing mastery brief and QA...")
+    
+    initial_state = {
+        "chunk_id": book_chapter,
+        "source_chunks": chunks,
+        "source_hash": source_hash,
+        "force_refresh": bool(force_refresh),
+        "chunk_outlines": None,
+        "mastery_brief": None,
+        "brief_revision_count": 0,
+        "artifact": None,
+        "qa_revision_count": 0,
+        "skip_processing": False,
+        "persist_locally": True,
+    }
+    
+    try:
+        graph.invoke(initial_state)
+        rprint()
+        rprint(f"[green]Done.[/green] Successfully processed {book_chapter}.")
+    except Exception as e:
+        rprint(f"  [red]x {book_chapter} failed: {e}[/red]")
 
 if __name__ == "__main__":
     app()
