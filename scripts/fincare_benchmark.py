@@ -14,21 +14,21 @@ class CausalityExtraction(BaseModel):
     answer: str = Field(description="The extracted literal answer to the question")
 
 class EvaluationResult(BaseModel):
-    is_match: bool = Field(description="Whether the predicted cause and effect semantically match the true cause and effect")
+    is_match: bool = Field(description="Whether the predicted answer semantically matches the true answer")
     reasoning: str = Field(description="Explanation for the judgement")
 
-def extract_causality(text: str, client: Groq) -> CausalityExtraction:
+def extract_answer(context: str, question: str, client: Groq) -> CausalityExtraction:
     prompt = f"""
-    Analyze the following financial text for causality. 
-    Identify the PRIMARY CAUSE and the PRIMARY EFFECT.
+    You are an expert Financial Analyst.
+    Read the following financial text and answer the question.
+    Extract the literal answer from the context that responds to the question.
     
-    Text: {text}
+    Context: {context}
+    Question: {question}
     
     Respond STRICTLY in the following JSON format:
     {{
-        "cause": "phrase identifying the cause",
-        "effect": "phrase identifying the effect",
-        "logic": "one sentence explaining the causal link"
+        "answer": "exact phrase from the context that answers the question"
     }}
     """
     
@@ -48,15 +48,12 @@ def extract_causality(text: str, client: Groq) -> CausalityExtraction:
     content = completion.choices[0].message.content
     return CausalityExtraction.model_validate_json(content)
 
-def evaluate_similarity(predicted_cause: str, predicted_effect: str, true_cause: str, true_effect: str, client: Groq) -> EvaluationResult:
+def evaluate_similarity(predicted_answer: str, true_answer: str, client: Groq) -> EvaluationResult:
     prompt = f"""
-    Evaluate if the predicted cause and effect semantically match the ground truth.
+    Evaluate if the predicted answer semantically matches the ground truth.
     
-    Ground Truth Cause: {true_cause}
-    Ground Truth Effect: {true_effect}
-    
-    Predicted Cause: {predicted_cause}
-    Predicted Effect: {predicted_effect}
+    Ground Truth Answer: {true_answer}
+    Predicted Answer: {predicted_answer}
     
     Do they mean the same thing in a financial context?
     
@@ -84,47 +81,40 @@ def evaluate_similarity(predicted_cause: str, predicted_effect: str, true_cause:
 def run_benchmark(num_samples: int = 10):
     client = Groq()
     
-    print("Loading FinCausal dataset...")
+    csv_path = "data/fincausal_2026/training_2026/train_en_2000.csv"
+    print(f"Loading FinCausal 2026 dataset from {csv_path}...")
     try:
-        # FinCausal subset available on HF
-        dataset = load_dataset("yya518/FinCausal-2020", split="train") 
-        df = pd.DataFrame(dataset)
+        df = pd.read_csv(csv_path, sep=';', quoting=1) # Handle potential quoting issues
     except Exception as e:
-        print(f"Error loading dataset from Hub: {e}. Falling back to sample data.")
-        df = pd.DataFrame()
+        print(f"Error loading dataset: {e}")
+        return
         
-    if 'cause' not in df.columns:
-        print("Warning: Expected 'cause' column not found. Using fallback subset for demo.")
-        df = pd.DataFrame({
-            "text": ["The increase in crude oil prices led to a 15% rise in transportation costs."],
-            "cause": ["increase in crude oil prices"],
-            "effect": ["15% rise in transportation costs"]
-        })
+    if 'context' not in df.columns or 'question' not in df.columns or 'answer' not in df.columns:
+        print("Error: Expected columns 'context', 'question', 'answer' not found in dataset.")
+        return
         
     df = df.head(num_samples)
     results = []
     
     print(f"Running benchmark on {len(df)} samples...")
     for idx, row in df.iterrows():
-        text = row.get('text', '')
-        true_cause = row.get('cause', '')
-        true_effect = row.get('effect', '')
+        context = str(row.get('context', ''))
+        question = str(row.get('question', ''))
+        true_answer = str(row.get('answer', ''))
         
         try:
-            extraction = extract_causality(text, client)
+            extraction = extract_answer(context, question, client)
             eval_result = evaluate_similarity(
-                extraction.cause, extraction.effect, 
-                true_cause, true_effect, 
+                extraction.answer,
+                true_answer, 
                 client
             )
             
             results.append({
-                "text": text,
-                "true_cause": true_cause,
-                "true_effect": true_effect,
-                "predicted_cause": extraction.cause,
-                "predicted_effect": extraction.effect,
-                "logic": extraction.logic,
+                "context": context,
+                "question": question,
+                "true_answer": true_answer,
+                "predicted_answer": extraction.answer,
                 "is_match": eval_result.is_match,
                 "reasoning": eval_result.reasoning
             })
@@ -136,7 +126,7 @@ def run_benchmark(num_samples: int = 10):
     results_df = pd.DataFrame(results)
     
     os.makedirs("outputs/benchmarks", exist_ok=True)
-    out_path = "outputs/benchmarks/fincare_results.csv"
+    out_path = "outputs/benchmarks/fincare_results_2026.csv"
     results_df.to_csv(out_path, index=False)
     
     accuracy = results_df['is_match'].mean() if len(results_df) > 0 else 0
