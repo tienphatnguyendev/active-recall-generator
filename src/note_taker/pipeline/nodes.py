@@ -41,9 +41,17 @@ def check_database_node(state: GraphState, db_manager: DatabaseManager = None) -
     state["artifact"] = None
     return state
 
+def _build_source_context(state: GraphState) -> str:
+    """Builds a standardized XML block of the source content.
+    This string must be identical across nodes to trigger API prefix caching.
+    """
+    chunks_text = "\n\n".join(f"### {c['title']}\n{c['content']}" for c in state.get("source_chunks", []))
+    return f"<source_document>\n{chunks_text}\n</source_document>\n\n"
+
 OUTLINE_SYSTEM_PROMPT = """Extract a 2-level outline from the text below.
 Level 1 = main topics (typically section headings).
 Level 2 = key facts or concepts under each topic.
+Think step-by-step in the 'thinking_process' field before providing the final answer.
 Output ONLY the outline items, nothing else."""
 
 def generate_outlines(state: GraphState) -> dict:
@@ -51,13 +59,17 @@ def generate_outlines(state: GraphState) -> dict:
     from note_taker.models import OutlineResponse
     
     outlines = []
+    source_context = _build_source_context(state)
+    
     for chunk in state["source_chunks"]:
-        prompt = f"System: {OUTLINE_SYSTEM_PROMPT}\n\nUser: {chunk['content']}"
+        system_prompt = f"{source_context}System: {OUTLINE_SYSTEM_PROMPT}"
+        user_prompt = f"User: Extract the outline for the following chunk:\n<chunk>{chunk['content']}</chunk>"
+        prompt = f"{system_prompt}\n\n{user_prompt}"
         response = invoke_outlines_with_backoff(
             prompt=prompt,
             schema=OutlineResponse,
             token_estimate=400,
-            tier="fast",
+            tier="reasoning",
         )
         outlines.append(response)
         
@@ -66,19 +78,25 @@ def generate_outlines(state: GraphState) -> dict:
 BRIEF_SYSTEM_PROMPT = """You are an expert educator.
 Synthesize the provided source chunks and their outlines into a single, ultra-condensed 80/20 mastery brief.
 Focus strictly on core ideas, non-negotiable details, conceptual connections, and common traps.
+Think step-by-step in the 'thinking_process' field before providing the final answer.
 Do not just summarize. Extract the foundational mechanisms."""
 
 def synthesize_brief(state: GraphState) -> dict:
     """Synthesize source chunks and outlines into a MasteryBrief."""
     from note_taker.models import MasteryBrief
     
-    combined_context = []
-    for chunk, outline in zip(state["source_chunks"], state.get("chunk_outlines", [])):
-        outline_text = "\n".join(f"- {item.title}" for item in outline.outline)
-        combined_context.append(f"### Source:\n{chunk['content']}\n### Outline:\n{outline_text}")
+    source_context = _build_source_context(state)
+    
+    outlines_text = []
+    for outline in state.get("chunk_outlines", []):
+        outline_str = "\n".join(f"- {item.title}" for item in outline.outline)
+        outlines_text.append(outline_str)
         
-    context_str = "\n\n".join(combined_context)
-    prompt = f"System: {BRIEF_SYSTEM_PROMPT}\n\nUser: {context_str}"
+    outlines_combined = "\n\n".join(outlines_text)
+    
+    system_prompt = f"{source_context}System: {BRIEF_SYSTEM_PROMPT}"
+    user_prompt = f"User: Synthesize the document based on the following outlines:\n<outlines>\n{outlines_combined}\n</outlines>"
+    prompt = f"{system_prompt}\n\n{user_prompt}"
     
     response = invoke_outlines_with_backoff(
         prompt=prompt,
@@ -98,6 +116,7 @@ Criteria (0.0–1.0 each):
 - **anti_summary_score**: Would this pass as a generic textbook summary? If yes, score LOW. A good brief sounds like expert notes, not a book jacket.
 - **connections_score**: Does it show HOW ideas connect (cause-effect, dependency, condition)? Or just list them adjacently?
 
+Think step-by-step in the 'thinking_process' field before providing the final answer.
 Threshold: overall_score ≥ 0.8 to pass. Provide specific, actionable feedback for any score below 0.8."""
 
 def judge_brief(state: GraphState) -> dict:
@@ -166,35 +185,33 @@ Task: Given a Mastery Brief, output EXACTLY one active-recall Q&A pair for every
 Field contract:
 - question : single sentence; tests a concept or mechanism from the source; self-contained
 - answer   : 1–3 sentences; fully answers the question using only information in the source
-- source_context : ≤ 2 verbatim or near-verbatim sentences from the source that support the answer"""
+- source_context : ≤ 2 verbatim or near-verbatim sentences from the source that support the answer
+Think step-by-step in the 'thinking_process' field before providing the final answer."""
 
 def qa_draft(state: GraphState) -> dict:
     """Generate Q&A pairs from the approved mastery brief (fast tier)."""
     from note_taker.models import QADraftResponse, FinalArtifactV2, QuestionAnswerPair
 
     brief = state["mastery_brief"]
-    source_text = "\n\n---\n\n".join(
-        f"### {c['title']}\n{c['content']}" for c in state["source_chunks"]
-    )
+    source_context = _build_source_context(state)
 
     brief_text = brief.model_dump_json(indent=2)
-    prompt = (
-        f"System: {QA_V2_SYSTEM_PROMPT}\n\n"
-        f"User:\n"
-        f"### Mastery Brief ({len(brief.core_ideas)} core ideas → generate {len(brief.core_ideas)} Q&A pairs)\n"
-        f"{brief_text}\n\n"
-        f"### Source Text\n{source_text}"
+    system_prompt = f"{source_context}System: {QA_V2_SYSTEM_PROMPT}"
+    user_prompt = (
+        f"User: Generate Q&A pairs based on the following Mastery Brief. "
+        f"You must generate exactly {len(brief.core_ideas)} Q&A pairs, one for each core idea.\n"
+        f"<mastery_brief>\n{brief_text}\n</mastery_brief>"
     )
+    prompt = f"{system_prompt}\n\n{user_prompt}"
 
     response = invoke_outlines_with_backoff(
         prompt=prompt,
         schema=QADraftResponse,
         token_estimate=600,
-        tier="fast",
-    )
+        tier="reasoning",    )
 
     qa_pairs = [
-        QuestionAnswerPair(question=qa.question, answer=qa.answer, source_context=qa.source_context)
+        QuestionAnswerPair(question=qa.question, answer=qa.answer, source_context=qa.source_context, judge_score=None, judge_feedback=None)
         for qa in response.qa_pairs
     ]
 
@@ -214,6 +231,7 @@ Criteria (0.0–1.0 each):
 - recall_worthiness_score: question tests understanding, not just a yes/no or trivial fact
 - overall_score: average of the three
 
+Think step-by-step in the 'thinking_process' field before providing the final answer.
 Provide feedback for any pair scoring below 0.8. Reference by index (0-based)."""
 
 def judge_qa(state: GraphState) -> dict:
@@ -231,8 +249,7 @@ def judge_qa(state: GraphState) -> dict:
         prompt=prompt,
         schema=JudgeVerdict,
         token_estimate=800,
-        tier="fast",
-    )
+        tier="reasoning",    )
 
     artifact = state["artifact"]
     for judgement in response.judgements:
@@ -251,6 +268,7 @@ Field contract (same as original):
 - answer: 1–3 sentences; accurate per the source
 - source_context: ≤ 2 verbatim sentences from the source supporting the answer
 
+Think step-by-step in the 'thinking_process' field before providing the final answer.
 Keep pairs that are fine. Fix only what the feedback criticizes."""
 
 def revise_qa(state: GraphState) -> dict:
@@ -273,18 +291,17 @@ def revise_qa(state: GraphState) -> dict:
         for i in failing_indices
     )
     
-    source_text = "\n\n---\n\n".join(
-        f"### {c['title']}\n{c['content']}" for c in state.get("source_chunks", [])
-    )
+    source_context = _build_source_context(state)
 
-    prompt = f"System: {REVISE_SYSTEM_PROMPT}\n\nUser: Source:\n{source_text}\n\nPairs to Revise:\n{failing_text}"
+    system_prompt = f"{source_context}System: {REVISE_SYSTEM_PROMPT}"
+    user_prompt = f"User: Please revise the following failing Q&A pairs based on the feedback:\n<failing_pairs>\n{failing_text}\n</failing_pairs>"
+    prompt = f"{system_prompt}\n\n{user_prompt}"
 
     response = invoke_outlines_with_backoff(
         prompt=prompt,
         schema=RevisionResponse,
         token_estimate=600,
-        tier="fast",
-    )
+        tier="reasoning",    )
 
     # Replace the failing pairs with the revised ones (mapping sequentially for now)
     if len(response.revised_pairs) == len(failing_indices):
@@ -294,7 +311,7 @@ def revise_qa(state: GraphState) -> dict:
             new_qa = QuestionAnswerPair(
                 question=revised_qa.question,
                 answer=revised_qa.answer,
-                source_context=revised_qa.source_context
+                source_context=revised_qa.source_context, judge_score=None, judge_feedback=None
             )
             artifact.qa_pairs[idx] = new_qa
 
