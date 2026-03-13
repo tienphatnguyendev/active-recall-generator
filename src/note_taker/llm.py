@@ -4,6 +4,7 @@ import logging
 import os
 import time
 import json
+import json_repair
 import re
 from collections import deque
 from typing import Dict, List, Optional, Tuple, Any
@@ -27,45 +28,56 @@ logger = logging.getLogger(__name__)
 TIER_CONFIGS: Dict[str, List[dict]] = {
     "fast": [
         {
-            "provider": "cerebras",
-            "model": "llama3.1-8b",
-            "env_key": "CEREBRAS_API_KEYS",
-            "fallback_env": "CEREBRAS_API_KEY",
-            "tpm": 12_000,
-        },
-        {
             "provider": "groq",
             "model": "meta-llama/llama-4-scout-17b-16e-instruct",
             "env_key": "GROQ_API_KEYS",
             "fallback_env": "GROQ_API_KEY",
-            "tpm": 30_000,
-            "supports_json_schema": False,
-        },
-        {
-            "provider": "groq",
-            "model": "meta-llama/llama-4-maverick-17b-128e-instruct",
-            "env_key": "GROQ_API_KEYS",
-            "fallback_env": "GROQ_API_KEY",
-            "tpm": 30_000,
-            "supports_json_schema": False,
-        },
-    ],
-    "reasoning": [
-        {
-            "provider": "cerebras",
-            "model": "gpt-oss-120b",
-            "env_key": "CEREBRAS_API_KEYS",
-            "fallback_env": "CEREBRAS_API_KEY",
-            "tpm": 12_000,
-            "supports_json_schema": False,
+            "tpm": 1_000_000,
+            "supports_json_schema": True,
         },
         {
             "provider": "groq",
             "model": "openai/gpt-oss-20b",
             "env_key": "GROQ_API_KEYS",
             "fallback_env": "GROQ_API_KEY",
+            "tpm": 1_000_000,
+            "supports_json_schema": False,
+            "reasoning_effort": "high",
+        },
+        {
+            "provider": "cerebras",
+            "model": "llama3.1-8b",
+            "env_key": "CEREBRAS_API_KEYS",
+            "fallback_env": "CEREBRAS_API_KEY",
             "tpm": 12_000,
+        },
+    ],
+    "reasoning": [
+        {
+            "provider": "groq",
+            "model": "meta-llama/llama-4-scout-17b-16e-instruct",
+            "env_key": "GROQ_API_KEYS",
+            "fallback_env": "GROQ_API_KEY",
+            "tpm": 1_000_000,
             "supports_json_schema": True,
+        },
+        {
+            "provider": "groq",
+            "model": "openai/gpt-oss-20b",
+            "env_key": "GROQ_API_KEYS",
+            "fallback_env": "GROQ_API_KEY",
+            "tpm": 1_000_000,
+            "supports_json_schema": False,
+            "reasoning_effort": "high",
+        },
+        {
+            "provider": "cerebras",
+            "model": "gpt-oss-120b",
+            "env_key": "CEREBRAS_API_KEYS",
+            "fallback_env": "CEREBRAS_API_KEY",
+            "tpm": 1_000_000,
+            "supports_json_schema": False,
+            "reasoning_effort": "high",
         },
         {
             "provider": "groq",
@@ -291,6 +303,32 @@ def _is_permanent_error(exc: Exception) -> bool:
     )
 
 
+def _sanitize_json_escapes(raw: str) -> str:
+    """Fix invalid JSON escape sequences produced by reasoning models (e.g. gpt-oss-20b).
+
+    The model sometimes outputs:
+    1. Literal newline/carriage-return/tab characters inside JSON string values.
+    2. Bare backslashes before non-standard escape characters (e.g. ``\.``).
+
+    Both cause standard JSON parsers (and json_repair) to fail.  This helper
+    sanitizes those cases so downstream parsing can succeed.
+    """
+    # Step 1: Replace literal control characters with their JSON escape equivalents.
+    # We do \r\n before \r to avoid double-replacing on Windows-style line endings.
+    sanitized = (
+        raw
+        .replace('\r\n', '\\n')
+        .replace('\r', '\\n')
+        .replace('\n', '\\n')
+        .replace('\t', '\\t')
+    )
+    # Step 2: Fix bare backslashes that are NOT followed by a valid JSON escape char.
+    # Valid single-char escapes after \ are: " \ / b f n r t
+    # Multi-char: \uXXXX  (handled by the 'u' in the set)
+    sanitized = re.sub(r'\\(?!["\\/bfnrtu])', r'\\\\', sanitized)
+    return sanitized
+
+
 def _invoke_single_outlines(
     model, prompt: str, schema: BaseModel, config: dict, token_estimate: int = 500
 ):
@@ -299,9 +337,19 @@ def _invoke_single_outlines(
     tracker.wait_if_needed(provider_id, token_estimate)
 
     supports_json_schema = config.get("supports_json_schema", True)
+    
+    # Extract reasoning_effort if present in config
+    call_params = {}
+    if "reasoning_effort" in config:
+        call_params["reasoning_effort"] = config["reasoning_effort"]
+
+    # Use max_completion_tokens (not deprecated max_tokens) with the model's
+    # full capacity.  Reasoning tokens count against this budget, so we need
+    # the maximum (65 536) to avoid truncation of the visible JSON output.
+    call_params["max_completion_tokens"] = 65536
 
     if supports_json_schema:
-        result = model(prompt, output_type=schema)
+        result = model(prompt, output_type=schema, **call_params)
         tracker.add_usage(provider_id, token_estimate)
         if isinstance(result, str):
             return schema.model_validate_json(result)
@@ -310,11 +358,12 @@ def _invoke_single_outlines(
         schema_json = json.dumps(schema.model_json_schema(), indent=2)
         modified_prompt = prompt + f"\n\nYou must output ONLY valid JSON matching this schema:\n```json\n{schema_json}\n```\nDo not include any other text."
         
-        result = model(modified_prompt)
+        result = model(modified_prompt, **call_params)
         tracker.add_usage(provider_id, token_estimate)
 
         if isinstance(result, str):
             clean_str = result.strip()
+            logger.debug(f"Raw model output (first 200 chars): {clean_str[:200]!r}")
             if clean_str.startswith("```json"):
                 clean_str = clean_str[7:]
             elif clean_str.startswith("```"):
@@ -322,7 +371,44 @@ def _invoke_single_outlines(
             if clean_str.endswith("```"):
                 clean_str = clean_str[:-3]
             clean_str = clean_str.strip()
-            return schema.model_validate_json(clean_str)
+            
+            try:
+                return schema.model_validate_json(clean_str)
+            except Exception as e:
+                # Fallback 1: sanitize invalid escape sequences (e.g. from gpt-oss-20b reasoning output)
+                logger.warning(f"JSON validation failed, attempting escape sanitization. Error: {e}")
+                sanitized_str = _sanitize_json_escapes(clean_str)
+                try:
+                    return schema.model_validate_json(sanitized_str)
+                except Exception as e2:
+                    # Fallback 2: attempt structural repair (trailing commas, etc.)
+                    logger.warning(f"Sanitized JSON still invalid, attempting json_repair. Error: {e2}")
+                    try:
+                        repaired_obj = json_repair.loads(sanitized_str)
+                        return schema.model_validate(repaired_obj)
+                    except Exception as e3:
+                        # Fallback 3: bare-value wrapping.
+                        # Reasoning models sometimes exhaust their token budget on
+                        # chain-of-thought and only emit the final answer (e.g. '+').
+                        # Try to wrap the bare value into a minimal schema-valid dict.
+                        logger.warning(
+                            f"json_repair failed, attempting bare-value wrap. "
+                            f"Raw output: {clean_str!r}. Error: {e3}"
+                        )
+                        schema_props = schema.model_json_schema().get("properties", {})
+                        if len(schema_props) > 0 and len(clean_str) < 50:
+                            wrapper = {}
+                            for field_name, field_info in schema_props.items():
+                                if "enum" in field_info or field_info.get("type") == "string":
+                                    # Use bare value for the first likely-match field
+                                    wrapper.setdefault(field_name, clean_str)
+                                else:
+                                    wrapper.setdefault(field_name, "")
+                            try:
+                                return schema.model_validate(wrapper)
+                            except Exception:
+                                pass
+                        raise  # re-raise e3 if wrapping didn't work
         return result
 
 

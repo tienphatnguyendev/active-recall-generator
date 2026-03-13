@@ -65,7 +65,7 @@ def test_final_artifact_v2_creation():
     artifact = FinalArtifactV2(
         source_hash="abc123",
         mastery_brief=brief,
-        qa_pairs=[QuestionAnswerPair(question="Q", answer="A", source_context="S")],
+        qa_pairs=[QuestionAnswerPair(question="Q", answer="A", source_context="S", judge_score=None, judge_feedback=None)],
     )
     assert artifact.version == 2
     assert artifact.mastery_brief.core_ideas[0].idea == "X"

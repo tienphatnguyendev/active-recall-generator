@@ -51,7 +51,7 @@ def test_should_continue_qa_all_passing():
     state = {
         "artifact": FinalArtifactV2(
             source_hash="h", mastery_brief=brief,
-            qa_pairs=[QuestionAnswerPair(question="Q", answer="A", source_context="S", judge_score=0.9)],
+            qa_pairs=[QuestionAnswerPair(question="Q", answer="A", source_context="S", judge_score=0.9, judge_feedback=None)],
         ),
         "qa_revision_count": 0,
     }
@@ -66,7 +66,7 @@ def test_should_continue_qa_needs_revision():
     state = {
         "artifact": FinalArtifactV2(
             source_hash="h", mastery_brief=brief,
-            qa_pairs=[QuestionAnswerPair(question="Q", answer="A", source_context="S", judge_score=0.5)],
+            qa_pairs=[QuestionAnswerPair(question="Q", answer="A", source_context="S", judge_score=0.5, judge_feedback=None)],
         ),
         "qa_revision_count": 1,
     }

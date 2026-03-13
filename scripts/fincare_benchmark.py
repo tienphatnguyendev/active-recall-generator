@@ -5,8 +5,9 @@ import pandas as pd
 from typing import Optional
 from pydantic import BaseModel, Field
 from datasets import load_dataset
-from groq import Groq
 from dotenv import load_dotenv
+
+from note_taker.llm import invoke_outlines_with_backoff
 
 load_dotenv()
 
@@ -17,70 +18,54 @@ class EvaluationResult(BaseModel):
     is_match: bool = Field(description="Whether the predicted answer semantically matches the true answer")
     reasoning: str = Field(description="Explanation for the judgement")
 
-def extract_answer(context: str, question: str, client: Groq) -> CausalityExtraction:
-    prompt = f"""
-    You are an expert Financial Analyst.
-    Read the following financial text and answer the question.
-    Extract the literal answer from the context that responds to the question.
-    
-    Context: {context}
-    Question: {question}
-    
-    Respond STRICTLY in the following JSON format:
-    {{
-        "answer": "exact phrase from the context that answers the question"
-    }}
-    """
-    
-    completion = client.chat.completions.create(
-        model="openai/gpt-oss-20b",
-        messages=[
-            {"role": "system", "content": "You are an expert Financial Analyst. Output ONLY valid JSON."},
-            {"role": "user", "content": prompt}
-        ],
-        temperature=0.1,
-        top_p=1.0,
-        response_format={"type": "json_object"},
-        seed=42,
-        extra_body={"reasoning_effort": "high"}
-    )
-    
-    content = completion.choices[0].message.content
-    return CausalityExtraction.model_validate_json(content)
+def extract_answer(context: str, question: str) -> CausalityExtraction:
+    system_prompt = "You are an expert Financial Analyst. Output ONLY valid JSON."
+    user_prompt = f"""You are an expert Financial Analyst.
+Read the following financial text and answer the question.
+Extract the literal answer from the context that responds to the question.
 
-def evaluate_similarity(predicted_answer: str, true_answer: str, client: Groq) -> EvaluationResult:
-    prompt = f"""
-    Evaluate if the predicted answer semantically matches the ground truth.
+Context: {context}
+Question: {question}
+
+Respond STRICTLY in the following JSON format:
+{{
+    "answer": "exact phrase from the context that answers the question"
+}}"""
     
-    Ground Truth Answer: {true_answer}
-    Predicted Answer: {predicted_answer}
+    prompt = f"System: {system_prompt}\n\nUser: {user_prompt}"
     
-    Do they mean the same thing in a financial context?
-    
-    Respond STRICTLY in the following JSON format:
-    {{
-        "is_match": true or false,
-        "reasoning": "brief explanation for the judgement"
-    }}
-    """
-    
-    completion = client.chat.completions.create(
-        model="llama-3.1-8b-instant",
-        messages=[
-            {"role": "system", "content": "You are a strict evaluation judge. Output ONLY valid JSON."},
-            {"role": "user", "content": prompt}
-        ],
-        temperature=0.0,
-        response_format={"type": "json_object"},
-        seed=42
+    return invoke_outlines_with_backoff(
+        prompt=prompt,
+        schema=CausalityExtraction,
+        token_estimate=500,
+        tier="reasoning"
     )
+
+def evaluate_similarity(predicted_answer: str, true_answer: str) -> EvaluationResult:
+    system_prompt = "You are a strict evaluation judge. Output ONLY valid JSON."
+    user_prompt = f"""Evaluate if the predicted answer semantically matches the ground truth.
+
+Ground Truth Answer: {true_answer}
+Predicted Answer: {predicted_answer}
+
+Do they mean the same thing in a financial context?
+
+Respond STRICTLY in the following JSON format:
+{{
+    "is_match": true or false,
+    "reasoning": "brief explanation for the judgement"
+}}"""
+
+    prompt = f"System: {system_prompt}\n\nUser: {user_prompt}"
     
-    content = completion.choices[0].message.content
-    return EvaluationResult.model_validate_json(content)
+    return invoke_outlines_with_backoff(
+        prompt=prompt,
+        schema=EvaluationResult,
+        token_estimate=300,
+        tier="fast"
+    )
 
 def run_benchmark(num_samples: int = 10):
-    client = Groq()
-    
     csv_path = "data/fincausal_2026/training_2026/train_en_2000.csv"
     print(f"Loading FinCausal 2026 dataset from {csv_path}...")
     try:
@@ -103,11 +88,10 @@ def run_benchmark(num_samples: int = 10):
         true_answer = str(row.get('answer', ''))
         
         try:
-            extraction = extract_answer(context, question, client)
+            extraction = extract_answer(context, question)
             eval_result = evaluate_similarity(
                 extraction.answer,
-                true_answer, 
-                client
+                true_answer
             )
             
             results.append({
@@ -119,7 +103,7 @@ def run_benchmark(num_samples: int = 10):
                 "reasoning": eval_result.reasoning
             })
             print(f"Sample {idx+1}/{len(df)}: {'✅ Match' if eval_result.is_match else '❌ No Match'}")
-            time.sleep(1) # Simple rate limiting
+            # time.sleep(1) # Simple rate limiting removed, relying on llm.py TokenTracker
         except Exception as e:
             print(f"Error on sample {idx}: {e}")
             
@@ -134,4 +118,4 @@ def run_benchmark(num_samples: int = 10):
     print(f"Results saved to {out_path}")
 
 if __name__ == "__main__":
-    run_benchmark(5)
+    run_benchmark(2000)

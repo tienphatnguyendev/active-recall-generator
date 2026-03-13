@@ -29,7 +29,7 @@ def sample_artifact():
     return FinalArtifactV2(
         source_hash="hash123",
         mastery_brief=brief,
-        qa_pairs=[QuestionAnswerPair(question="Q", answer="A", source_context="C")]
+        qa_pairs=[QuestionAnswerPair(question="Q", answer="A", source_context="C", judge_score=None, judge_feedback=None)]
     )
 
 def test_singleton_pattern(temp_db_path):

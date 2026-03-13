@@ -45,6 +45,7 @@ def save_artifact_to_supabase(
         "title": title,
         "source_hash": artifact.source_hash,
         "mastery_brief": mastery_brief_json,
+        "outline": [],  # Satisfy legacy V1 Not Null constraint
     }
 
     artifact_response = (

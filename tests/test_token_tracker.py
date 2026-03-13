@@ -70,5 +70,5 @@ def test_invoke_outlines_with_backoff_tracks_usage(mock_from_openai, mock_openai
 
         invoke_outlines_with_backoff("input", Dummy, token_estimate=500, tier="fast")
         
-        mock_tracker.wait_if_needed.assert_called_with("cerebras:llama3.1-8b", 500)
-        mock_tracker.add_usage.assert_called_with("cerebras:llama3.1-8b", 500)
+        mock_tracker.wait_if_needed.assert_called_with("groq:openai/gpt-oss-20b", 500)
+        mock_tracker.add_usage.assert_called_with("groq:openai/gpt-oss-20b", 500)

@@ -15,13 +15,25 @@ MAX_BRIEF_REVISIONS = 3
 MAX_QA_REVISIONS = 3
 
 def should_continue_brief(state: GraphState) -> str:
-    """Route after judge_brief: pass -> qa_draft, fail -> revise_brief (up to limit)."""
+    """Route after judge_brief: pass -> qa_draft, fail -> revise_brief (up to limit).
+
+    Passes only if overall >= 0.90 AND no individual criterion falls below 0.7.
+    This prevents the average from masking weak individual dimensions.
+    """
     if state.get("brief_revision_count", 0) >= MAX_BRIEF_REVISIONS:
         return "qa_draft"
 
     judgement = state.get("brief_judgement")
-    if judgement and judgement.overall_score >= 0.8:
-        return "qa_draft"
+    if judgement and judgement.overall_score >= 0.90:        # Check per-criterion minimums — any weak dimension triggers revision
+        min_criterion = min(
+            judgement.specificity_score,
+            judgement.density_score,
+            judgement.leverage_score,
+            judgement.anti_summary_score,
+            judgement.connections_score,
+        )
+        if min_criterion >= 0.7:
+            return "qa_draft"
 
     return "revise_brief"
 

@@ -133,8 +133,8 @@ def test_judge_brief_scores_brief():
     from note_taker.models import MasteryBrief, CoreIdea, BriefJudgement
 
     state = {
-        "mastery_brief": MasteryBrief(
-            core_ideas=[CoreIdea(idea="X", why_it_matters="Y", mechanism="Z")],
+        "source_chunks": [{"title": "Test Title", "content": "Test content"}],
+        "mastery_brief": MasteryBrief(            core_ideas=[CoreIdea(idea="X", why_it_matters="Y", mechanism="Z")],
             non_negotiable_details=["D"], connections=["C"],
             common_traps=["T"], five_min_review=["R"],
         ),
@@ -234,8 +234,7 @@ def test_judge_qa_v2_scores_pairs():
         "artifact": FinalArtifactV2(
             source_hash="abc",
             mastery_brief=brief,
-            qa_pairs=[QuestionAnswerPair(question="Q", answer="A", source_context="S")],
-        ),
+            qa_pairs=[QuestionAnswerPair(question="Q", answer="A", source_context="S", judge_score=None, judge_feedback=None)],        ),
     }
 
     mock_verdict = JudgeVerdict(judgements=[
