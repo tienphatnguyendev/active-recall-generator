@@ -2,7 +2,7 @@ import os
 import pytest
 from pydantic import ValidationError
 from note_taker.database import DatabaseManager
-from note_taker.models import FinalArtifactV1, OutlineItem, QuestionAnswerPair
+from note_taker.models import FinalArtifactV2, MasteryBrief, CoreIdea, QuestionAnswerPair
 
 @pytest.fixture
 def temp_db_path(tmp_path):
@@ -21,10 +21,15 @@ def db_manager(temp_db_path):
 
 @pytest.fixture
 def sample_artifact():
-    return FinalArtifactV1(
+    brief = MasteryBrief(
+        core_ideas=[CoreIdea(idea="X", why_it_matters="Y", mechanism="Z")],
+        non_negotiable_details=["D"], connections=["C"],
+        common_traps=["T"], five_min_review=["R"],
+    )
+    return FinalArtifactV2(
         source_hash="hash123",
-        outline=[OutlineItem(title="Test", level=1)],
-        qa_pairs=[QuestionAnswerPair(question="Q", answer="A", source_context="C")]
+        mastery_brief=brief,
+        qa_pairs=[QuestionAnswerPair(question="Q", answer="A", source_context="C", judge_score=None, judge_feedback=None)]
     )
 
 def test_singleton_pattern(temp_db_path):

@@ -3,15 +3,21 @@ import pytest
 from unittest.mock import MagicMock, patch
 from note_taker.api.persistence import save_artifact_to_supabase
 from note_taker.models import (
-    FinalArtifactV1, OutlineItem, QuestionAnswerPair,
+    FinalArtifactV2, MasteryBrief, CoreIdea, QuestionAnswerPair,
 )
 
 
 @pytest.fixture
 def sample_artifact():
-    return FinalArtifactV1(
+    return FinalArtifactV2(
         source_hash="abc123",
-        outline=[OutlineItem(title="Intro", level=1)],
+        mastery_brief=MasteryBrief(
+            core_ideas=[CoreIdea(idea="X", why_it_matters="Y", mechanism="Z")],
+            non_negotiable_details=[],
+            connections=[],
+            common_traps=[],
+            five_min_review=[]
+        ),
         qa_pairs=[
             QuestionAnswerPair(
                 question="What are agents?",

@@ -4,7 +4,7 @@ import logging
 from typing import Any
 
 from supabase import Client
-from note_taker.models import FinalArtifactV1
+from note_taker.models import FinalArtifactV2
 
 logger = logging.getLogger(__name__)
 
@@ -13,9 +13,9 @@ def save_artifact_to_supabase(
     client: Client,
     user_id: str,
     title: str,
-    artifact: FinalArtifactV1,
+    artifact: FinalArtifactV2,
 ) -> str:
-    """Insert a FinalArtifactV1 into Supabase as an artifact + cards.
+    """Insert a FinalArtifactV2 into Supabase as an artifact + cards.
 
     Args:
         client: Supabase admin client (service role).
@@ -39,12 +39,13 @@ def save_artifact_to_supabase(
         logger.warning(f"Self-healing user profile failed: {e}")
 
     # 1) Insert artifact
-    outline_json = [item.model_dump() for item in artifact.outline]
+    mastery_brief_json = artifact.mastery_brief.model_dump()
     artifact_row = {
         "user_id": user_id,
         "title": title,
         "source_hash": artifact.source_hash,
-        "outline": outline_json,
+        "mastery_brief": mastery_brief_json,
+        "outline": [],  # Satisfy legacy V1 Not Null constraint
     }
 
     artifact_response = (

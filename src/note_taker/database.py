@@ -2,7 +2,7 @@ import os
 from typing import Optional
 from sqlite_utils import Database
 from note_taker.config import DB_PATH
-from note_taker.models import FinalArtifactV1
+from note_taker.models import FinalArtifactV2
 
 class DatabaseManager:
     _instance = None
@@ -52,16 +52,16 @@ class DatabaseManager:
         except Exception as e:
             raise e
 
-    def get_artifact(self, id: str) -> Optional[FinalArtifactV1]:
+    def get_artifact(self, id: str) -> Optional[FinalArtifactV2]:
         """Retrieve processed content by ID."""
         try:
             row = self._get_db()["processed_content"].get(id)
-            return FinalArtifactV1.model_validate_json(row["artifact_json"])
+            return FinalArtifactV2.model_validate_json(row["artifact_json"])
         except Exception:
             # sqlite_utils raises NotFoundError if pk doesn't exist
             return None
 
-    def save_artifact(self, id: str, artifact: FinalArtifactV1) -> None:
+    def save_artifact(self, id: str, artifact: FinalArtifactV2) -> None:
         """Upsert content when IDs or hashes change, or when Force Refresh is requested."""
         self._get_db()["processed_content"].upsert({
             "id": id,

@@ -1,41 +1,78 @@
 import pytest
-from unittest.mock import patch, MagicMock
-from langgraph.graph import StateGraph
-from note_taker.pipeline.graph import build_graph, should_continue
+from unittest.mock import patch
+from note_taker.pipeline.graph import build_graph, should_continue_brief, should_continue_qa
 
-def test_should_continue_skip_processing():
-    """If skip_processing is True, should route to END."""
-    state = {"skip_processing": True, "revision_count": 0, "artifact": None}
-    assert should_continue(state) == "__end__"
+def test_should_continue_brief_passes():
+    """If brief_judgement.overall_score >= 0.8, route to qa_draft."""
+    from note_taker.models import BriefJudgement
+    state = {
+        "brief_judgement": BriefJudgement(
+            specificity_score=0.9, density_score=0.9, leverage_score=0.9,
+            anti_summary_score=0.9, connections_score=0.9,
+            overall_score=0.9, feedback="Excellent.",
+        ),
+        "brief_revision_count": 0,
+    }
+    assert should_continue_brief(state) == "qa_draft"
 
-def test_should_continue_needs_revision():
-    """If there are failing qa_pairs and we haven't hit the limit, route to revise_node."""
-    from note_taker.models import FinalArtifactV1, QuestionAnswerPair, OutlineItem
-    failing_qa = QuestionAnswerPair(question="Q", answer="A", source_context="C", judge_score=0.5)
-    artifact = FinalArtifactV1(source_hash="h", outline=[], qa_pairs=[failing_qa])
-    
-    state = {"skip_processing": False, "revision_count": 0, "artifact": artifact}
-    assert should_continue(state) == "revise_node"
+def test_should_continue_brief_fails_under_limit():
+    """If brief score < 0.8 and under revision limit, route to revise_brief."""
+    from note_taker.models import BriefJudgement
+    state = {
+        "brief_judgement": BriefJudgement(
+            specificity_score=0.5, density_score=0.5, leverage_score=0.5,
+            anti_summary_score=0.5, connections_score=0.5,
+            overall_score=0.5, feedback="Too vague.",
+        ),
+        "brief_revision_count": 1,
+    }
+    assert should_continue_brief(state) == "revise_brief"
 
-def test_should_continue_revision_limit():
-    """If we hit the revision limit, route to save_to_db_node even if there are failing pairs."""
-    from note_taker.models import FinalArtifactV1, QuestionAnswerPair, OutlineItem
-    failing_qa = QuestionAnswerPair(question="Q", answer="A", source_context="C", judge_score=0.5)
-    artifact = FinalArtifactV1(source_hash="h", outline=[], qa_pairs=[failing_qa])
-    
-    state = {"skip_processing": False, "revision_count": 3, "artifact": artifact}
-    assert should_continue(state) == "save_to_db_node"
+def test_should_continue_brief_hits_limit():
+    """If brief revision limit reached, force qa_draft anyway."""
+    from note_taker.models import BriefJudgement
+    state = {
+        "brief_judgement": BriefJudgement(
+            specificity_score=0.5, density_score=0.5, leverage_score=0.5,
+            anti_summary_score=0.5, connections_score=0.5,
+            overall_score=0.5, feedback="Still vague.",
+        ),
+        "brief_revision_count": 3,
+    }
+    assert should_continue_brief(state) == "qa_draft"
 
-def test_should_continue_all_passing():
-    """If all qa_pairs pass (score >= 0.7), route to save_to_db_node."""
-    from note_taker.models import FinalArtifactV1, QuestionAnswerPair, OutlineItem
-    passing_qa = QuestionAnswerPair(question="Q", answer="A", source_context="C", judge_score=0.9)
-    artifact = FinalArtifactV1(source_hash="h", outline=[], qa_pairs=[passing_qa])
-    
-    state = {"skip_processing": False, "revision_count": 0, "artifact": artifact}
-    assert should_continue(state) == "save_to_db_node"
+def test_should_continue_qa_all_passing():
+    """If all QA scores >= 0.8, route to save_to_db_node."""
+    from note_taker.models import FinalArtifactV2, MasteryBrief, CoreIdea, QuestionAnswerPair
+    brief = MasteryBrief(
+        core_ideas=[CoreIdea(idea="X", why_it_matters="Y", mechanism="Z")],
+        non_negotiable_details=[], connections=[], common_traps=[], five_min_review=[],
+    )
+    state = {
+        "artifact": FinalArtifactV2(
+            source_hash="h", mastery_brief=brief,
+            qa_pairs=[QuestionAnswerPair(question="Q", answer="A", source_context="S", judge_score=0.9, judge_feedback=None)],
+        ),
+        "qa_revision_count": 0,
+    }
+    assert should_continue_qa(state) == "save_to_db_node"
 
-def test_build_graph_compiles():
-    """build_graph should return a compiled graph."""
+def test_should_continue_qa_needs_revision():
+    from note_taker.models import FinalArtifactV2, MasteryBrief, CoreIdea, QuestionAnswerPair
+    brief = MasteryBrief(
+        core_ideas=[CoreIdea(idea="X", why_it_matters="Y", mechanism="Z")],
+        non_negotiable_details=[], connections=[], common_traps=[], five_min_review=[],
+    )
+    state = {
+        "artifact": FinalArtifactV2(
+            source_hash="h", mastery_brief=brief,
+            qa_pairs=[QuestionAnswerPair(question="Q", answer="A", source_context="S", judge_score=0.5, judge_feedback=None)],
+        ),
+        "qa_revision_count": 1,
+    }
+    assert should_continue_qa(state) == "revise_qa"
+
+def test_build_graph_v2_compiles():
+    """V2 build_graph should return a compiled graph with invoke."""
     graph = build_graph()
     assert hasattr(graph, "invoke")

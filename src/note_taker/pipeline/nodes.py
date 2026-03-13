@@ -41,113 +41,186 @@ def check_database_node(state: GraphState, db_manager: DatabaseManager = None) -
     state["artifact"] = None
     return state
 
-DRAFT_SYSTEM_PROMPT = """You are an expert educator creating active recall study materials.
-Given a section of a textbook, generate:
-1. A 2-level hierarchical outline of the key concepts.
-2. One question-and-answer pair per subpoint in the outline.
-
-Rules:
-- Questions should test understanding, not just recall of facts.
-- Answers should be concise but complete.
-- source_context should be the relevant sentence(s) from the source text.
-- The outline should have level 1 for main topics and level 2 for subtopics."""
+def _build_source_context(state: GraphState) -> str:
+    """Builds a standardized XML block of the source content.
+    This string must be identical across nodes to trigger API prefix caching.
+    """
+    chunks_text = "\n\n".join(f"### {c['title']}\n{c['content']}" for c in state.get("source_chunks", []))
+    return f"<source_document>\n{chunks_text}\n</source_document>\n\n"
 
 OUTLINE_SYSTEM_PROMPT = """Extract a 2-level outline from the text below.
 Level 1 = main topics (typically section headings).
 Level 2 = key facts or concepts under each topic.
+Think step-by-step in the 'thinking_process' field before providing the final answer.
 Output ONLY the outline items, nothing else."""
 
-def outline_draft_node(state: GraphState) -> dict:
-    """Generate a hierarchical outline from source content."""
+def generate_outlines(state: GraphState) -> dict:
+    """Generate outlines for all source chunks in parallel (conceptually)."""
     from note_taker.models import OutlineResponse
     
-    prompt = f"System: {OUTLINE_SYSTEM_PROMPT}\n\nUser: {state['source_content']}"
+    outlines = []
+    source_context = _build_source_context(state)
+    
+    for chunk in state["source_chunks"]:
+        system_prompt = f"{source_context}System: {OUTLINE_SYSTEM_PROMPT}"
+        user_prompt = f"User: Extract the outline for the following chunk:\n<chunk>{chunk['content']}</chunk>"
+        prompt = f"{system_prompt}\n\n{user_prompt}"
+        response = invoke_outlines_with_backoff(
+            prompt=prompt,
+            schema=OutlineResponse,
+            token_estimate=400,
+            tier="reasoning",
+        )
+        outlines.append(response)
+        
+    return {"chunk_outlines": outlines}
+
+BRIEF_SYSTEM_PROMPT = """You are an expert educator.
+Synthesize the provided source chunks and their outlines into a single, ultra-condensed 80/20 mastery brief.
+Focus strictly on core ideas, non-negotiable details, conceptual connections, and common traps.
+Think step-by-step in the 'thinking_process' field before providing the final answer.
+Do not just summarize. Extract the foundational mechanisms."""
+
+def synthesize_brief(state: GraphState) -> dict:
+    """Synthesize source chunks and outlines into a MasteryBrief."""
+    from note_taker.models import MasteryBrief
+    
+    source_context = _build_source_context(state)
+    
+    outlines_text = []
+    for outline in state.get("chunk_outlines", []):
+        outline_str = "\n".join(f"- {item.title}" for item in outline.outline)
+        outlines_text.append(outline_str)
+        
+    outlines_combined = "\n\n".join(outlines_text)
+    
+    system_prompt = f"{source_context}System: {BRIEF_SYSTEM_PROMPT}"
+    user_prompt = f"User: Synthesize the document based on the following outlines:\n<outlines>\n{outlines_combined}\n</outlines>"
+    prompt = f"{system_prompt}\n\n{user_prompt}"
     
     response = invoke_outlines_with_backoff(
         prompt=prompt,
-        schema=OutlineResponse,
-        token_estimate=400,
-        tier="fast",
+        schema=MasteryBrief,
+        token_estimate=1500,
+        tier="reasoning",
     )
-
-    return {"outline": response}
-
-# ── QA Draft ─────────────────────────────────────────────────────────────────
-# WHY this prompt is written the way it is:
-#   • The fast tier uses grammar-constrained decoding (outlines native JSON schema),
-#     so the model NEVER has to "guess" the JSON format — we just need it to fill
-#     values correctly.
-#   • Small models (8B-17B) need: a clear role, concrete field semantics with hard
-#     bounds, and an explicit count anchor so they don't under- or over-generate.
-#   • We removed vague rules like "test understanding" (the model ignores them when
-#     constrained) and replaced them with terse, bounded specs.
-QA_SYSTEM_PROMPT = """You are a study-card generator.
-
-Task: Given source text and a hierarchical outline, output EXACTLY one active-recall Q&A pair for every Level-2 outline item — no more, no fewer.
-
-Field contract:
-- question : single sentence; tests a concept or mechanism from the source; self-contained (no "According to the text…")
-- answer   : 1–3 sentences; fully answers the question using only information in the source
-- source_context : ≤ 2 verbatim or near-verbatim sentences from the source that support the answer
-
-Do NOT invent facts outside the source. Do NOT add commentary."""
-
-def qa_draft_node(state: GraphState) -> dict:
-    """Generate Q&A pairs from source content and outline.
-
-    Tier choice — 'fast' (llama3.1-8b on Cerebras) rather than 'reasoning':
-    • Q&A generation is a structured extraction task, not a reasoning task.
-    • The fast tier uses outlines grammar-constrained decoding (supports_json_schema
-      defaults to True), so the JSON schema is enforced at the token level — no
-      regex fallback, no schema-in-prompt bloat.
-    • Benchmark before fix: avg 47s, max 60s (gpt-oss-120b, schema-in-prompt path).
-      Expected after fix: avg < 5s on Cerebras llama3.1-8b.
-    """
-    from note_taker.models import QADraftResponse, FinalArtifactV1, OutlineItem, QuestionAnswerPair
     
-    # Needs outline from previous node
-    outline_response = state.get("outline")
-    if not outline_response:
-        raise ValueError("qa_draft_node requires an outline but none was found in state.")
+    return {"mastery_brief": response}
 
-    # Separate level-1 and level-2 items for the prompt anchor
-    level2_items = [item for item in outline_response.outline if item.level == 2]
-    outline_text = "\n".join(
-        f"{'  ' * (item.level - 1)}- [L{item.level}] {item.title}"
-        for item in outline_response.outline
+JUDGE_BRIEF_SYSTEM_PROMPT = """Score the mastery brief. Be ruthless — a vague overview should score below 0.5.
+
+Criteria (0.0–1.0 each):
+- **specificity_score**: Does each core idea name a specific mechanism, definition, or relationship? Or is it a vague topic label?
+- **density_score**: Is every sentence information-dense? Could any sentence be deleted without losing information?
+- **leverage_score**: Are these truly the ~20% of ideas that carry ~80% of value? Or is it just "everything in order"?
+- **anti_summary_score**: Would this pass as a generic textbook summary? If yes, score LOW. A good brief sounds like expert notes, not a book jacket.
+- **connections_score**: Does it show HOW ideas connect (cause-effect, dependency, condition)? Or just list them adjacently?
+
+Think step-by-step in the 'thinking_process' field before providing the final answer.
+Threshold: overall_score ≥ 0.8 to pass. Provide specific, actionable feedback for any score below 0.8."""
+
+def judge_brief(state: GraphState) -> dict:
+    """Score the mastery brief on specificity, density, leverage, anti-summary, and connections."""
+    from note_taker.models import BriefJudgement
+
+    brief = state["mastery_brief"]
+    brief_text = brief.model_dump_json(indent=2)
+
+    prompt = f"System: {JUDGE_BRIEF_SYSTEM_PROMPT}\n\nUser: Mastery Brief:\n{brief_text}"
+
+    judgement = invoke_outlines_with_backoff(
+        prompt=prompt,
+        schema=BriefJudgement,
+        token_estimate=800,
+        tier="reasoning",
     )
+
+    return {"brief_judgement": judgement}
+
+REVISE_BRIEF_SYSTEM_PROMPT = """Rewrite the mastery brief to fix the issues identified in the feedback.
+
+You must produce a complete, revised MasteryBrief. Do not just patch — rewrite with the feedback in mind.
+
+The feedback is from a strict judge. Address every criticism. If the judge says "too vague", add specific mechanisms. If the judge says "reads like a summary", rewrite to sound like expert notes.
+
+Anti-patterns to AVOID:
+- "This chapter discusses X" (topic label)
+- "Y is important" (assertion without mechanism)
+- Listing every concept (that's an outline, not 80/20)"""
+
+def revise_brief(state: GraphState) -> dict:
+    """Rewrite the mastery brief based on judge feedback (reasoning tier)."""
+    from note_taker.models import BriefRevisionResponse
+
+    brief = state["mastery_brief"]
+    judgement = state["brief_judgement"]
 
     prompt = (
-        f"System: {QA_SYSTEM_PROMPT}\n\n"
+        f"System: {REVISE_BRIEF_SYSTEM_PROMPT}\n\n"
         f"User:\n"
-        f"### Source\n{state['source_content']}\n\n"
-        f"### Outline ({len(level2_items)} Level-2 items → generate {len(level2_items)} Q&A pairs)\n"
-        f"{outline_text}"
+        f"### Current Brief\n{brief.model_dump_json(indent=2)}\n\n"
+        f"### Judge Feedback\n{judgement.feedback}\n\n"
+        f"### Judge Scores\n"
+        f"specificity={judgement.specificity_score}, density={judgement.density_score}, "
+        f"leverage={judgement.leverage_score}, anti_summary={judgement.anti_summary_score}, "
+        f"connections={judgement.connections_score}"
     )
-    
+
+    response = invoke_outlines_with_backoff(
+        prompt=prompt,
+        schema=BriefRevisionResponse,
+        token_estimate=1200,
+        tier="reasoning",
+    )
+
+    return {
+        "mastery_brief": response.revised_brief,
+        "brief_revision_count": state.get("brief_revision_count", 0) + 1,
+    }
+
+QA_V2_SYSTEM_PROMPT = """You are a study-card generator.
+
+Task: Given a Mastery Brief, output EXACTLY one active-recall Q&A pair for every Core Idea — no more, no fewer.
+
+Field contract:
+- question : single sentence; tests a concept or mechanism from the source; self-contained
+- answer   : 1–3 sentences; fully answers the question using only information in the source
+- source_context : ≤ 2 verbatim or near-verbatim sentences from the source that support the answer
+Think step-by-step in the 'thinking_process' field before providing the final answer."""
+
+def qa_draft(state: GraphState) -> dict:
+    """Generate Q&A pairs from the approved mastery brief (fast tier)."""
+    from note_taker.models import QADraftResponse, FinalArtifactV2, QuestionAnswerPair
+
+    brief = state["mastery_brief"]
+    source_context = _build_source_context(state)
+
+    brief_text = brief.model_dump_json(indent=2)
+    system_prompt = f"{source_context}System: {QA_V2_SYSTEM_PROMPT}"
+    user_prompt = (
+        f"User: Generate Q&A pairs based on the following Mastery Brief. "
+        f"You must generate exactly {len(brief.core_ideas)} Q&A pairs, one for each core idea.\n"
+        f"<mastery_brief>\n{brief_text}\n</mastery_brief>"
+    )
+    prompt = f"{system_prompt}\n\n{user_prompt}"
+
     response = invoke_outlines_with_backoff(
         prompt=prompt,
         schema=QADraftResponse,
         token_estimate=600,
-        tier="fast",
-    )
+        tier="reasoning",    )
 
-    # Convert LLM items to internal items
-    internal_outline = [
-        OutlineItem(title=item.title, level=item.level)
-        for item in outline_response.outline
-    ]
-    internal_qa_pairs = [
-        QuestionAnswerPair(question=qa.question, answer=qa.answer, source_context=qa.source_context)
+    qa_pairs = [
+        QuestionAnswerPair(question=qa.question, answer=qa.answer, source_context=qa.source_context, judge_score=None, judge_feedback=None)
         for qa in response.qa_pairs
     ]
 
-    artifact = FinalArtifactV1(
+    artifact = FinalArtifactV2(
         source_hash=state["source_hash"],
-        outline=internal_outline,
-        qa_pairs=internal_qa_pairs,
+        mastery_brief=brief,
+        qa_pairs=qa_pairs,
     )
-    
+
     return {"artifact": artifact}
 
 JUDGE_SYSTEM_PROMPT = """Score each Q&A pair. Be strict — do NOT give high scores to vague or trivial items.
@@ -158,15 +231,11 @@ Criteria (0.0–1.0 each):
 - recall_worthiness_score: question tests understanding, not just a yes/no or trivial fact
 - overall_score: average of the three
 
-Examples:
-- Q: "What drives evaporation?" A: "Solar heating converts liquid water to vapor." → overall 0.9
-- Q: "What is evaporation?" A: "Water goes up." → overall 0.4 (vague, incomplete)
-- Q: "Is water wet?" A: "Yes." → overall 0.2 (trivial)
-
+Think step-by-step in the 'thinking_process' field before providing the final answer.
 Provide feedback for any pair scoring below 0.8. Reference by index (0-based)."""
 
-def judge_node(state: GraphState) -> dict:
-    """Score each Q&A pair on accuracy, clarity, and recall-worthiness."""
+def judge_qa(state: GraphState) -> dict:
+    """Score each Q&A pair on accuracy, clarity, and recall-worthiness (V2)."""
     from note_taker.models import JudgeVerdict
     
     qa_text = "\n".join(
@@ -180,8 +249,7 @@ def judge_node(state: GraphState) -> dict:
         prompt=prompt,
         schema=JudgeVerdict,
         token_estimate=800,
-        tier="fast",
-    )
+        tier="reasoning",    )
 
     artifact = state["artifact"]
     for judgement in response.judgements:
@@ -200,10 +268,11 @@ Field contract (same as original):
 - answer: 1–3 sentences; accurate per the source
 - source_context: ≤ 2 verbatim sentences from the source supporting the answer
 
+Think step-by-step in the 'thinking_process' field before providing the final answer.
 Keep pairs that are fine. Fix only what the feedback criticizes."""
 
-def revise_node(state: GraphState) -> dict:
-    """Rewrite Q&A pairs that scored < 0.7 based on feedback."""
+def revise_qa(state: GraphState) -> dict:
+    """Rewrite Q&A pairs that scored < 0.8 based on feedback (V2)."""
     from note_taker.models import RevisionResponse
     
     artifact = state["artifact"]
@@ -213,7 +282,7 @@ def revise_node(state: GraphState) -> dict:
     ]
 
     if not failing_indices:
-        return {"revision_count": state.get("revision_count", 0) + 1}
+        return {"qa_revision_count": state.get("qa_revision_count", 0) + 1}
 
     failing_text = "\n".join(
         f"[{i}] Q: {artifact.qa_pairs[i].question}\n"
@@ -221,18 +290,20 @@ def revise_node(state: GraphState) -> dict:
         f"    Feedback: {artifact.qa_pairs[i].judge_feedback}"
         for i in failing_indices
     )
+    
+    source_context = _build_source_context(state)
 
-    prompt = f"System: {REVISE_SYSTEM_PROMPT}\n\nUser: Source:\n{state['source_content']}\n\nPairs to Revise:\n{failing_text}"
+    system_prompt = f"{source_context}System: {REVISE_SYSTEM_PROMPT}"
+    user_prompt = f"User: Please revise the following failing Q&A pairs based on the feedback:\n<failing_pairs>\n{failing_text}\n</failing_pairs>"
+    prompt = f"{system_prompt}\n\n{user_prompt}"
 
     response = invoke_outlines_with_backoff(
         prompt=prompt,
         schema=RevisionResponse,
         token_estimate=600,
-        tier="fast",
-    )
+        tier="reasoning",    )
 
     # Replace the failing pairs with the revised ones (mapping sequentially for now)
-    # The LLM returns a list of N revised pairs for the N failing ones.
     if len(response.revised_pairs) == len(failing_indices):
         from note_taker.models import QuestionAnswerPair
         for idx, revised_qa in zip(failing_indices, response.revised_pairs):
@@ -240,13 +311,13 @@ def revise_node(state: GraphState) -> dict:
             new_qa = QuestionAnswerPair(
                 question=revised_qa.question,
                 answer=revised_qa.answer,
-                source_context=revised_qa.source_context
+                source_context=revised_qa.source_context, judge_score=None, judge_feedback=None
             )
             artifact.qa_pairs[idx] = new_qa
 
     return {
         "artifact": artifact,
-        "revision_count": state.get("revision_count", 0) + 1
+        "qa_revision_count": state.get("qa_revision_count", 0) + 1
     }
 
 def save_to_db_node(state: GraphState, db_manager: DatabaseManager = None) -> dict:
