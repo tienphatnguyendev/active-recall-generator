@@ -24,19 +24,13 @@ export async function logStudySession(
     throw new Error("Unauthorized: You must be logged in to log study sessions");
   }
 
-  let rating = 1;
-  if (ratingStr === "unsure") rating = 2;
-  if (ratingStr === "know") rating = 3;
-
+  // Map to new study_sessions schema
   const { error } = await supabase
     .from("study_sessions")
     .insert({
-      card_id: cardId,
       user_id: user.id,
-      rating: rating,
-      duration_ms: durationMs,
-      state_before: 0,
-      state_after: 0,
+      cards_studied: 1,
+      duration_seconds: Math.floor(durationMs / 1000),
     });
 
   if (error) {
@@ -68,47 +62,41 @@ export async function logBulkStudySession(
     throw new Error("Unauthorized: You must be logged in to log study sessions");
   }
 
-  // Bulk insert study session records
-  const sessionRecords = validated.results.map((r) => ({
-    user_id: user.id,
-    card_id: r.cardId,
-    rating: r.rating,
-    duration_ms: r.duration_ms || validated.duration || 0,
-    state_before: r.state_before || 0,
-    state_after: r.state_after || 0,
-    reviewed_at: new Date().toISOString(),
-  }));
-
+  // Insert summary study session record
   const { error: insertError } = await supabase
     .from("study_sessions")
-    .insert(sessionRecords);
+    .insert({
+      user_id: user.id,
+      cards_studied: validated.results.length,
+      duration_seconds: validated.duration || 0,
+    });
 
   if (insertError) {
-    console.error("Error inserting study sessions:", insertError);
-    throw new Error(`Failed to log study sessions: ${insertError.message}`);
+    console.error("Error inserting study session summary:", insertError);
+    throw new Error(`Failed to log study session: ${insertError.message}`);
   }
 
-  // Update FSRS state on cards (only for results that have FSRS data)
+  // Update FSRS state on cards (mapping to new unprefixed columns)
   for (const r of validated.results) {
     if (r.cardId && r.fsrs) {
       const { error: updateError } = await supabase
         .from("cards")
         .update({
           fsrs_state: r.fsrs.state ?? r.state_after ?? 0,
-          fsrs_due: r.fsrs.due ?? new Date().toISOString(),
-          fsrs_stability: r.fsrs.stability ?? 0,
-          fsrs_difficulty: r.fsrs.difficulty ?? 0,
-          fsrs_elapsed_days: r.fsrs.elapsed_days ?? 0,
-          fsrs_scheduled_days: r.fsrs.scheduled_days ?? 0,
-          fsrs_reps: r.fsrs.reps ?? 0,
-          fsrs_lapses: r.fsrs.lapses ?? 0,
+          due: r.fsrs.due ?? new Date().toISOString(),
+          stability: r.fsrs.stability ?? 0,
+          difficulty: r.fsrs.difficulty ?? 0,
+          elapsed_days: r.fsrs.elapsed_days ?? 0,
+          scheduled_days: r.fsrs.scheduled_days ?? 0,
+          reps: r.fsrs.reps ?? 0,
+          lapses: r.fsrs.lapses ?? 0,
+          last_review: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
         .eq("id", r.cardId);
 
       if (updateError) {
         console.error(`Failed to update FSRS for card ${r.cardId}:`, updateError);
-        // Don't throw — log the error but continue with other cards
       }
     }
   }

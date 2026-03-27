@@ -26,7 +26,7 @@ export async function GET(
     // Fetch artifact by ID — RLS ensures user can only access their own
     const { data: artifact, error: fetchError } = await supabase
       .from('artifacts')
-      .select('id, title, source_hash, created_at, cards(id, question, answer, judge_score)')
+      .select('id, title, source_hash, created_at, cards(id, front, back)')
       .eq('id', id)
       .single();
 
@@ -47,10 +47,10 @@ export async function GET(
     }
 
     if (format === 'csv') {
-      let csv = 'question,answer,judge_score\n';
+      let csv = 'front,back\n';
       for (const card of (artifact.cards || [])) {
         const escape = (s: string) => `"${(s || '').replace(/"/g, '""')}"`;
-        csv += `${escape(card.question)},${escape(card.answer)},${card.judge_score ?? ''}\n`;
+        csv += `${escape(card.front)},${escape(card.back)}\n`;
       }
       return new NextResponse(csv, {
         status: 200,

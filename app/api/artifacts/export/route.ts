@@ -20,10 +20,11 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch real artifacts for the authenticated user
+    // Scoped via folders.user_id for defense-in-depth
     const { data: artifacts, error: fetchError } = await supabase
       .from('artifacts')
-      .select('id, title, source_hash, created_at, cards(id, question, answer, judge_score)')
-      .eq('user_id', user.id);
+      .select('id, title, source_hash, created_at, folders!inner(user_id), cards(id, front, back)')
+      .eq('folders.user_id', user.id);
 
     if (fetchError) {
       console.error('Error fetching artifacts for export:', fetchError);
@@ -42,13 +43,13 @@ export async function GET(request: NextRequest) {
     }
 
     if (format === 'csv') {
-      let csv = 'artifact_id,source,section,question,answer,judge_score\n';
+      let csv = 'artifact_id,source,section,front,back\n';
       for (const artifact of (artifacts || [])) {
         for (const card of (artifact.cards || [])) {
           // Escape fields containing commas or quotes
           const escape = (s: string) => `"${(s || '').replace(/"/g, '""')}"`;
           const { source, section } = parseArtifactDisplay(artifact.title, artifact.source_hash);
-          csv += `${artifact.id},${escape(source)},${escape(section)},${escape(card.question)},${escape(card.answer)},${card.judge_score ?? ''}\n`;
+          csv += `${artifact.id},${escape(source)},${escape(section)},${escape(card.front)},${escape(card.back)}\n`;
         }
       }
       return new NextResponse(csv, {

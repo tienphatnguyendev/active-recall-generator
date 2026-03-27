@@ -13,19 +13,16 @@ export async function GET(request: NextRequest) {
     }
 
     const searchParams = request.nextUrl.searchParams;
-    const artifactId = searchParams.get('artifactId');
     const limit = parseInt(searchParams.get('limit') || '10');
 
+    // Fetch study sessions for the authenticated user
+    // Note: artifactId filtering is removed as study_sessions no longer joins to cards directly
     let query = supabase
       .from('study_sessions')
-      .select('*, cards!inner(*)')
+      .select('id, user_id, cards_studied, duration_seconds, created_at')
       .eq('user_id', userData.user.id)
-      .order('reviewed_at', { ascending: false })
+      .order('created_at', { ascending: false })
       .limit(limit);
-
-    if (artifactId) {
-      query = query.eq('cards.artifact_id', artifactId);
-    }
 
     const { data, error } = await query;
 
